@@ -139,6 +139,9 @@
   .ps-footer{display:flex;justify-content:flex-end;margin-top:40px;font-size:13px;}
   .ps-footer .sig{width:220px;text-align:center;}
   .ps-sign{display:block;height:42px;object-fit:contain;margin:0 auto 4px;}
+  /* Force every bit of text on the printed sheet to pure black — near-black greys print faint/faded on laser printers */
+  .print-sheet, .print-sheet *{color:#000 !important;}
+  .ps-table td, .ps-table th{font-weight:600;}
   .sig-line{border-top:1px solid #333;padding-top:6px;}
 </style>
 </head>
@@ -640,9 +643,24 @@ function formatBnDate(dateStr){
   return toBnDigits(`${d}/${m}/${y}`);
 }
 
+// Computes a table font-size (and matching cell padding) so that, whether there are
+// 5 students or 60, the printed table fills roughly the same page height — few students
+// means noticeably BIGGER text, not wasted blank space at the bottom of the page.
+function computeDynamicTableStyle(rowCount){
+  const targetTableHeightPx = 760; // approx. usable table-body height on one A4 page at our fixed 780px sheet width
+  const effectiveRows = rowCount + 1; // + header row
+  const rowHeightPx = targetTableHeightPx / effectiveRows;
+  let fontPx = rowHeightPx / 2.15; // empirical: rowHeight ≈ fontSize * 2.15 given our padding/line-height
+  fontPx = Math.max(9, Math.min(30, fontPx));
+  const padV = Math.round(fontPx * 0.32);
+  const padH = Math.round(fontPx * 0.42);
+  return { fontPx: fontPx.toFixed(1), padV, padH };
+}
+
 function printSheetHtml(ex, ranking){
   const topMark = ranking.length && ranking[0].mark!==null ? toBnDigits(ranking[0].mark) : '';
   const rowCount = ranking.length || 1;
+  const ts = computeDynamicTableStyle(rowCount);
   const rows = ranking.map((r,i)=>`
     <tr>
       <td>${toBnDigits(String(i+1).padStart(2,'0'))}</td>
@@ -656,6 +674,10 @@ function printSheetHtml(ex, ranking){
   const sectionLine = `${ex.cls}${ex.section ? ' ('+ex.section+')' : ''}${ex.batch ? ' — '+ex.batch : ''} শাখার পরীক্ষার ফলাফল`;
 
   return `
+    <style>
+      .ps-table th, .ps-table td{ font-size:${ts.fontPx}px !important; padding:${ts.padV}px ${ts.padH}px !important; }
+      .ps-table td.ps-top{ font-size:${(ts.fontPx*2.2).toFixed(1)}px !important; }
+    </style>
     <div class="ps-header-row">
       <img class="ps-logo" src="data:image/jpeg;base64,${LOGO_B64}" alt="logo"/>
       <div class="ps-titleblock">
