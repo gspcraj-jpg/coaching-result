@@ -271,8 +271,24 @@ function datalistOptions(arr){
 }
 
 async function saveExam(exam){
-  // if exam already has an id (editing an existing one), overwrite it in place; otherwise create a new one
-  const id = exam.id || `${exam.classKey}_${sanitizeKey(exam.subject)}_${exam.date}_${Date.now()}`;
+  let id;
+  if(exam.id){
+    // Editing an existing record: keep the original creation-timestamp suffix (for uniqueness)
+    // but rebuild the classKey/subject/date portion of the id from the CURRENT values —
+    // otherwise correcting a date (or class/subject) during an edit wouldn't move the record
+    // into the right date folder; it would silently stay filed under the old date.
+    const parts = exam.id.split('_');
+    const ts = parts[parts.length-1];
+    const newId = `${exam.classKey}_${sanitizeKey(exam.subject)}_${exam.date}_${ts}`;
+    if(newId !== exam.id){
+      try{ await STORE.delete('exam:'+exam.id, true); }catch(e){ /* old key may already be gone — fine */ }
+      id = newId;
+    } else {
+      id = exam.id;
+    }
+  } else {
+    id = `${exam.classKey}_${sanitizeKey(exam.subject)}_${exam.date}_${Date.now()}`;
+  }
   exam.id = id;
   try{
     await STORE.set('exam:'+id, JSON.stringify(exam), true);
@@ -335,6 +351,8 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
+const APP_VERSION_DATE = "09-09-2026"; // bump this string every time a new version is shipped
+
 function render(){
   const app = document.getElementById('app');
   app.innerHTML = '';
@@ -343,6 +361,7 @@ function render(){
   if(VIEW==='entry') app.appendChild(renderEntry());
   if(VIEW==='result') app.appendChild(renderResult());
   if(VIEW==='admin') app.appendChild(renderAdmin());
+  app.appendChild(el(`<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:30px;padding-top:14px;border-top:1px solid var(--line);">Update: ${APP_VERSION_DATE}</div>`));
 }
 
 function renderHeader(){
@@ -654,13 +673,19 @@ function computeDynamicTableStyle(rowCount){
   fontPx = Math.max(9, Math.min(30, fontPx));
   const padV = Math.round(fontPx * 0.32);
   const padH = Math.round(fontPx * 0.42);
-  return { fontPx: fontPx.toFixed(1), padV, padH };
+  // header/logo/meta/signature scale together with the table, but more gently (dampened),
+  // so they stay visually harmonious without the logo/heading becoming absurdly huge or tiny.
+  const tableScale = fontPx / 16;
+  let headScale = 1 + (tableScale - 1) * 0.5;
+  headScale = Math.max(0.75, Math.min(1.5, headScale));
+  return { fontPx: fontPx.toFixed(1), padV, padH, headScale };
 }
 
 function printSheetHtml(ex, ranking){
   const topMark = ranking.length && ranking[0].mark!==null ? toBnDigits(ranking[0].mark) : '';
   const rowCount = ranking.length || 1;
   const ts = computeDynamicTableStyle(rowCount);
+  const hs = ts.headScale;
   const rows = ranking.map((r,i)=>`
     <tr>
       <td>${toBnDigits(String(i+1).padStart(2,'0'))}</td>
@@ -677,6 +702,15 @@ function printSheetHtml(ex, ranking){
     <style>
       .ps-table th, .ps-table td{ font-size:${ts.fontPx}px !important; padding:${ts.padV}px ${ts.padH}px !important; }
       .ps-table td.ps-top{ font-size:${(ts.fontPx*2.2).toFixed(1)}px !important; }
+      .ps-header-row{ margin-bottom:${(14*hs).toFixed(1)}px !important; padding-bottom:${(10*hs).toFixed(1)}px !important; border-bottom-width:${Math.max(2,3*hs).toFixed(1)}px !important; }
+      .ps-logo, .ps-logo-spacer{ width:${(78*hs).toFixed(1)}px !important; height:${(78*hs).toFixed(1)}px !important; }
+      .ps-titleblock h1{ font-size:${(30*hs).toFixed(1)}px !important; }
+      .ps-titleblock p{ font-size:${(15*hs).toFixed(1)}px !important; }
+      .ps-meta{ font-size:${(14*hs).toFixed(1)}px !important; margin-bottom:${(16*hs).toFixed(1)}px !important; }
+      .ps-footer{ margin-top:${(40*hs).toFixed(1)}px !important; }
+      .ps-footer .sig{ width:${(220*hs).toFixed(1)}px !important; }
+      .ps-sign{ height:${(42*hs).toFixed(1)}px !important; }
+      .sig-line{ font-size:${(14*hs).toFixed(1)}px !important; padding-top:${(6*hs).toFixed(1)}px !important; }
     </style>
     <div class="ps-header-row">
       <img class="ps-logo" src="data:image/jpeg;base64,${LOGO_B64}" alt="logo"/>
@@ -843,12 +877,19 @@ function renderAdmin(){
           <h2 style="margin:0;">সংরক্ষিত রেজাল্টসমূহ (তারিখ অনুযায়ী)</h2>
           <button class="btn small secondary" id="downloadAllBtn">📦 সব রেজাল্ট ZIP আকারে ডাউনলোড করুন</button>
         </div>
+        <div class="field" style="margin-bottom:14px;">
+          <input type="text" id="adminSearch" placeholder="🔍 শ্রেণি, শাখা, ব্যাচ, বিষয় বা তারিখ (DD-MM-YYYY) লিখে খুঁজুন..."/>
+        </div>
         <div id="examListHost"><p class="muted">লোড হচ্ছে...</p></div>
       </div>
     </div>
   `);
   const host = wrap.querySelector('#examListHost');
   renderAdminInto(host);
+  const searchInput = wrap.querySelector('#adminSearch');
+  searchInput.addEventListener('input', ()=>{
+    renderAdminList(host, searchInput.value.trim());
+  });
   const downloadAllBtn = wrap.querySelector('#downloadAllBtn');
   downloadAllBtn.addEventListener('click', async ()=>{
     downloadAllBtn.disabled = true;
@@ -867,32 +908,61 @@ function renderAdmin(){
   return wrap;
 }
 
-// Re-loads and re-renders the exam list, grouped into date "folders" with bulk-download buttons.
+let ADMIN_CACHE = null; // { dates: [...], byDate: Map(date -> [parsed items]) } — refreshed by renderAdminInto
+
+// Fetches the exam key list fresh from the server, caches it, and renders the (unfiltered) list.
 // Used for the initial admin view load and after deleting/editing an item.
-async function renderAdminInto(host){
+async function renderAdminInto(host, searchTerm){
   host.innerHTML = '<p class="muted">লোড হচ্ছে...</p>';
   const keys = await listExamKeys();
   if(!keys.length){
+    ADMIN_CACHE = { dates: [], byDate: new Map() };
     host.innerHTML = `<p class="empty">এখনো কোনো রেজাল্ট সংরক্ষিত হয়নি।</p>`;
     return;
   }
   const parsed = keys.map(parseExamKey).sort((a,b)=> Number(b.ts)-Number(a.ts));
-
-  // group by date
   const byDate = new Map();
   parsed.forEach(p=>{
     if(!byDate.has(p.date)) byDate.set(p.date, []);
     byDate.get(p.date).push(p);
   });
   const dates = Array.from(byDate.keys()).sort((a,b)=> a<b ? 1 : -1); // newest date first
+  ADMIN_CACHE = { dates, byDate };
+  renderAdminList(host, searchTerm || '');
+}
 
+// Renders the date-folder list from ADMIN_CACHE, filtered by searchTerm (matches class/section/
+// batch, subject, or the DD-MM-YYYY date string). Pure client-side — no network call, so it's
+// instant as the person types. When searching, matching folders auto-expand.
+function renderAdminList(host, searchTerm){
+  if(!ADMIN_CACHE){ return; }
+  const { dates, byDate } = ADMIN_CACHE;
+  if(!dates.length){
+    host.innerHTML = `<p class="empty">এখনো কোনো রেজাল্ট সংরক্ষিত হয়নি।</p>`;
+    return;
+  }
+  const term = (searchTerm||'').trim().toLowerCase();
   host.innerHTML = '';
+  let anyMatch = false;
+
   dates.forEach((date, idx)=>{
-    const itemsForDate = byDate.get(date);
+    const allItemsForDate = byDate.get(date);
+    const dateLabelPlain = formatBnDate(date); // Bengali-digit DD/MM/YYYY, for display
+    const dateLabelAscii = (()=>{ const [y,m,d]=date.split('-'); return `${d}-${m}-${y}`; })(); // DD-MM-YYYY, for search matching
+    const itemsForDate = term
+      ? allItemsForDate.filter(p =>
+          p.classKey.replace(/-/g,' ').toLowerCase().includes(term) ||
+          p.subject.toLowerCase().includes(term) ||
+          dateLabelAscii.includes(term)
+        )
+      : allItemsForDate;
+    if(term && itemsForDate.length===0) return; // hide folders with no matches while searching
+    anyMatch = true;
+
     const folder = el(`
-      <details class="date-folder" ${idx===0 ? 'open' : ''}>
+      <details class="date-folder" ${ (term || idx===0) ? 'open' : '' }>
         <summary>
-          <span>📅 <b>${formatBnDate(date)}</b> — ${toBnDigits(itemsForDate.length)}টি রেজাল্ট</span>
+          <span>📅 <b>${dateLabelPlain}</b> — ${toBnDigits(itemsForDate.length)}টি রেজাল্ট</span>
           <button class="btn small secondary" data-bulk-date="${date}">📦 সব ডাউনলোড (ZIP)</button>
         </summary>
         <div class="folder-body" data-body-date="${date}"></div>
@@ -949,7 +1019,7 @@ async function renderAdminInto(host){
         const success = await deleteExam(id);
         if(success){
           showToast('রেজাল্ট মুছে ফেলা হয়েছে');
-          renderAdminInto(host);
+          renderAdminInto(host, term);
         } else {
           showToast('মুছতে সমস্যা হয়েছে, আবার চেষ্টা করুন');
         }
@@ -975,6 +1045,10 @@ async function renderAdminInto(host){
 
     host.appendChild(folder);
   });
+
+  if(term && !anyMatch){
+    host.innerHTML = `<p class="empty">"${searchTerm}" এর সাথে মিলে এমন কোনো রেজাল্ট পাওয়া যায়নি।</p>`;
+  }
 }
 
 async function init(){
