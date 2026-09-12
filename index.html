@@ -499,7 +499,7 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
-const APP_VERSION_DATE = "10-09-2026"; // bump this string every time a new version is shipped
+const APP_VERSION_DATE = "12-09-2026"; // bump this string every time a new version is shipped
 
 function render(){
   const app = document.getElementById('app');
@@ -862,6 +862,32 @@ function formatBnDate(dateStr){
   return toBnDigits(`${d}/${m}/${y}`);
 }
 
+// Extracts a natural "class, section, shift" sort order directly from the combined classKey
+// text (e.g. "৩য়-শ্রেণি-ক-শাখা-সকাল"), so results list in a predictable row — ৩য়, ৪র্থ...১০ম,
+// then ক,খ,গ,ঘ,ঙ within each class, then সকাল/বিকাল — instead of by upload time. This makes it
+// easy to spot at a glance which class/section is still missing a result.
+const CLASS_ORDINAL_ORDER = ['১ম','২য়','৩য়','৪র্থ','৫ম','৬ষ্ঠ','৭ম','৮ম','৯ম','১০ম','১১তম','১২তম'];
+const SECTION_LETTER_ORDER = ['ক','খ','গ','ঘ','ঙ','চ','ছ','জ','ঝ','ঞ','ট','ঠ','ড','ঢ','ণ'];
+const SHIFT_WORD_ORDER = ['সকাল','দুপুর','বিকাল','বিকেল','সন্ধ্যা','রাত'];
+function classSortKey(classKeyText){
+  const text = classKeyText || '';
+  const tokens = text.split('-');
+  let classRank = CLASS_ORDINAL_ORDER.findIndex(w => text.includes(w));
+  if(classRank === -1) classRank = 999;
+  let sectionRank = tokens.findIndex(t => SECTION_LETTER_ORDER.includes(t));
+  sectionRank = sectionRank === -1 ? 999 : SECTION_LETTER_ORDER.indexOf(tokens[sectionRank]);
+  let shiftRank = SHIFT_WORD_ORDER.findIndex(w => text.includes(w));
+  if(shiftRank === -1) shiftRank = 999;
+  return { classRank, sectionRank, shiftRank };
+}
+function compareByNaturalClassOrder(a, b){
+  const ka = classSortKey(a.classKey), kb = classSortKey(b.classKey);
+  if(ka.classRank !== kb.classRank) return ka.classRank - kb.classRank;
+  if(ka.sectionRank !== kb.sectionRank) return ka.sectionRank - kb.sectionRank;
+  if(ka.shiftRank !== kb.shiftRank) return ka.shiftRank - kb.shiftRank;
+  return a.classKey.localeCompare(b.classKey, 'bn');
+}
+
 // Computes a table font-size (and matching cell padding) so that, whether there are
 // 5 students or 60, the printed table fills roughly the same page height — few students
 // means noticeably BIGGER text, not wasted blank space at the bottom of the page.
@@ -1096,6 +1122,18 @@ function renderSettings(){
           <button class="btn secondary" id="changeDeletePinBtn">ডিলিট পিন পরিবর্তন করুন</button>
         </div>
       </div>
+      <div class="card">
+        <h2>পুরনো রেজাল্ট আপডেট করুন</h2>
+        <p class="muted" style="font-size:14px;line-height:1.7;margin-bottom:18px;">
+          "পরীক্ষার ধরন" ফিচারটা চালু হওয়ার আগে যেসব রেজাল্ট তৈরি হয়েছিল, সেগুলোতে কোনো ধরন উল্লেখ নেই।
+          নিচের বাটনে চাপলে সেই পুরনো সবগুলো রেজাল্টকে একসাথে <b>"সাপ্তাহিক পরীক্ষা"</b> হিসেবে চিহ্নিত করে
+          দেওয়া হবে (যেহেতু আগে যা তৈরি হয়েছে তার সবই সাপ্তাহিক পরীক্ষার রেজাল্ট ছিল)। এটা একবার চালালেই
+          যথেষ্ট — নতুন করে তৈরি করা রেজাল্টে এটা লাগবে না, সেগুলো এমনিতেই আপনার বেছে নেওয়া ধরন অনুযায়ী সংরক্ষিত হয়।
+        </p>
+        <div class="row-actions">
+          <button class="btn secondary" id="migrateLegacyBtn">পুরনো রেজাল্ট "সাপ্তাহিক পরীক্ষা" হিসেবে চিহ্নিত করুন</button>
+        </div>
+      </div>
     </div>
   `);
   wrap.querySelector('#changeTeacherPinBtn').addEventListener('click', async ()=>{
@@ -1104,7 +1142,42 @@ function renderSettings(){
   wrap.querySelector('#changeDeletePinBtn').addEventListener('click', async ()=>{
     await changePin('delete');
   });
+  wrap.querySelector('#migrateLegacyBtn').addEventListener('click', async (evt)=>{
+    await migrateLegacyExamsToWeekly(evt.target);
+  });
   return wrap;
+}
+
+// One-time bulk fix: finds every exam saved before the exam-type feature existed (legacy key
+// format, no "__" separators) and re-saves it with examType = "সাপ্তাহিক পরীক্ষা". Re-using
+// saveExam() means it automatically moves each record to the new key format too (same logic
+// that already handles date/class corrections during a normal edit).
+async function migrateLegacyExamsToWeekly(button){
+  button.disabled = true;
+  const origText = button.textContent;
+  const keys = await listExamKeys();
+  const legacyKeys = keys.filter(k => !k.replace(/^exam:/,'').includes('__'));
+  if(!legacyKeys.length){
+    showToast('কোনো পুরনো (ধরনবিহীন) রেজাল্ট পাওয়া যায়নি');
+    button.disabled = false;
+    button.textContent = origText;
+    return;
+  }
+  let done = 0;
+  for(const k of legacyKeys){
+    button.textContent = `চলছে (${done+1}/${legacyKeys.length})...`;
+    const id = k.replace(/^exam:/,'');
+    const data = await getExam(id);
+    if(data && !data.examType){
+      data.id = id;
+      data.examType = 'সাপ্তাহিক পরীক্ষা';
+      await saveExam(data);
+    }
+    done++;
+  }
+  showToast(`${toBnDigits(done)}টি পুরনো রেজাল্ট "সাপ্তাহিক পরীক্ষা" হিসেবে চিহ্নিত হয়েছে`);
+  button.disabled = false;
+  button.textContent = origText;
 }
 
 function renderAdmin(){
@@ -1229,7 +1302,7 @@ function renderAdminList(host, searchTerm){
   }
 
   groupKeys.forEach((gKey, idx)=>{
-    const itemsForGroup = groups.get(gKey);
+    const itemsForGroup = groups.get(gKey).slice().sort(compareByNaturalClassOrder);
     const folderLabel = GROUP_MODE === 'date' ? formatBnDate(gKey) : gKey;
     const bulkFilenameBase = GROUP_MODE === 'date' ? `Results-${gKey}` : `Results-${filenameSafe(gKey)}`;
 
