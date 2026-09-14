@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>রেজাল্ট ম্যানেজমেন্ট সিস্টেম</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1c4a34">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="রেজাল্ট সিস্টেম">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -499,7 +507,7 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
-const APP_VERSION_DATE = "12-09-2026"; // bump this string every time a new version is shipped
+const APP_VERSION_DATE = "14-09-2026"; // bump this string every time a new version is shipped
 
 function render(){
   const app = document.getElementById('app');
@@ -846,7 +854,7 @@ function renderResult(){
         <div class="row-actions">
           <button class="btn" id="printNow">PDF ডাউনলোড করুন</button>
           <button class="btn secondary" id="printBrowser">প্রিন্টারে প্রিন্ট করুন</button>
-          <button class="btn secondary" id="newOne">নতুন আরেকটি রেজাল্ট এন্ট্রি</button>
+          ${TEACHER_UNLOCKED ? `<button class="btn secondary" id="newOne">নতুন আরেকটি রেজাল্ট এন্ট্রি</button>` : ''}
           <button class="btn secondary" id="toAdmin">সব রেজাল্ট দেখুন</button>
         </div>
       </div>
@@ -1419,6 +1427,15 @@ render = function(){
 };
 
 init();
+
+// Register the service worker so Chrome/Edge offer an "Install app" option — safe to skip
+// silently if the browser doesn't support it or the file isn't reachable (e.g. opened locally
+// as a plain file instead of via the live GitHub Pages link).
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{ /* not fatal — app still works normally */ });
+  });
+}
 </script>
 </body>
 </html>
