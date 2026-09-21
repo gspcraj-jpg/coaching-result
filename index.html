@@ -262,6 +262,8 @@ const ICON_EYE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" st
 const ICON_LOGOUT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
 const ICON_PLUS = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 const ICON_GEAR = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const ICON_SHARE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>`;
+const ICON_MT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M9 13.5 7 22l5-3 5 3-2-8.5"/></svg>`;
 function sanitizeKey(s){ return (s||"").trim().replace(/[\s\/\\'"]+/g,'-'); }
 
 // ---- Filename transliteration (Bengali → English), used ONLY for downloaded file names ----
@@ -531,7 +533,7 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
-const APP_VERSION_DATE = "15-09-2026"; // bump this string every time a new version is shipped
+const APP_VERSION_DATE = "21-09-2026"; // bump this string every time a new version is shipped
 
 function render(){
   const app = document.getElementById('app');
@@ -542,6 +544,7 @@ function render(){
   if(VIEW==='result') app.appendChild(renderResult());
   if(VIEW==='admin') app.appendChild(renderAdmin());
   if(VIEW==='settings') app.appendChild(renderSettings());
+  if(VIEW==='mt') app.appendChild(renderMT());
   app.appendChild(el(`<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:30px;padding-top:14px;border-top:1px solid var(--line);">Update: ${APP_VERSION_DATE}</div>`));
 }
 
@@ -567,6 +570,7 @@ function renderHeader(){
       <nav class="tabs">
         <button data-view="home" class="${VIEW==='home'?'active':''}">${ICON_HOME} হোম</button>
         <button data-view="admin" class="${VIEW==='admin'?'active':''}">${ICON_EYE} রেজাল্ট দেখুন / প্রিন্ট</button>
+        <button data-view="mt" class="${VIEW==='mt'?'active':''}">${ICON_MT} মডেল টেস্ট রেজাল্ট</button>
         ${entryTabHtml}
         ${settingsHtml}
         ${logoutHtml}
@@ -679,9 +683,9 @@ function renderEntry(){
             <datalist id="dl_section">${datalistOptions(FORM_META.sections)}</datalist>
           </div>
           <div class="field">
-            <label>ব্যাচ</label>
-            <input type="text" id="f_batch" value="${ex.batch}" placeholder="যেমন: সন্ধ্যা ব্যাচ (ঐচ্ছিক)" list="dl_batch"/>
-            <datalist id="dl_batch">${datalistOptions(FORM_META.batches)}</datalist>
+            <label>ব্যাচ (সকাল/বিকাল) *</label>
+            <input type="text" id="f_batch" value="${ex.batch}" placeholder="যেমন: সকাল" list="dl_batch"/>
+            <datalist id="dl_batch">${datalistOptions(Array.from(new Set(['সকাল','বিকাল','সন্ধ্যা', ...FORM_META.batches])))}</datalist>
           </div>
         </div>
         <div class="grid">
@@ -761,7 +765,7 @@ function collectMetaForm(root){
 
 async function goToStudentsStep(){
   const ex = currentExam;
-  if(!ex.examType || !ex.teacher || !ex.subject || !ex.cls || !ex.date){
+  if(!ex.examType || !ex.teacher || !ex.subject || !ex.cls || !ex.batch || !ex.date){
     showToast('অনুগ্রহ করে * চিহ্নিত ঘরগুলো পূরণ করুন');
     return;
   }
@@ -875,6 +879,7 @@ function renderResult(){
         <p class="muted" style="margin-top:10px;">রেজাল্ট প্রস্তুতকারী: <b>${ex.teacher}</b></p>
         <div class="row-actions">
           <button class="btn" id="printNow">PDF ডাউনলোড করুন</button>
+          <button class="btn secondary" id="shareBtn">${ICON_SHARE} শেয়ার করুন (WhatsApp)</button>
           <button class="btn secondary" id="printBrowser">প্রিন্টারে প্রিন্ট করুন</button>
           ${TEACHER_UNLOCKED ? `<button class="btn secondary" id="newOne">নতুন আরেকটি রেজাল্ট এন্ট্রি</button>` : ''}
           <button class="btn secondary" id="toAdmin">সব রেজাল্ট দেখুন</button>
@@ -1042,6 +1047,36 @@ async function downloadPDF(ex){
   }
 }
 
+// Shares a result as a SINGLE-page JPG image (never the 2-page print/PDF version — that
+// duplication is only meant for physical "2 pages per sheet" printing, not for sending to a
+// parent over WhatsApp). Uses the native share sheet when available; falls back to just
+// downloading the image if sharing files isn't supported, so it can be attached manually.
+async function shareResultImage(ex){
+  try{
+    const canvas = await renderExamToCanvas(ex); // single page only, no duplication
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if(!blob) throw new Error('canvas toBlob failed');
+    const fname = `${filenameSafe(ex.cls)}_${filenameSafe(ex.examType)}_${filenameSafe(ex.subject)}_${ex.date}.jpg`.replace(/_+/g,'_');
+    const file = new File([blob], fname, { type: 'image/jpeg' });
+    const shareText = `${ex.cls}${ex.section ? ' ('+ex.section+')' : ''} — ${ex.subject} — ${formatBnDate(ex.date)} এর রেজাল্ট`;
+
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], title: 'রেজাল্ট', text: shareText });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      showToast('এই ব্রাউজারে সরাসরি শেয়ার সমর্থিত নয় — ছবিটা ডাউনলোড হয়েছে, WhatsApp-এ গিয়ে সংযুক্ত করে দিন');
+    }
+  }catch(err){
+    if(err.name === 'AbortError') return; // person cancelled the share sheet — not an error
+    console.error(err);
+    showToast('শেয়ার করতে সমস্যা হয়েছে, আবার চেষ্টা করুন');
+  }
+}
+
 // Downloads every exam in examList as ONE combined PDF (each result still duplicated onto
 // 2 pages for economical "2 pages per sheet" printing). Used for the date "folder" bulk-download.
 // Downloads every exam in examList as a ZIP file containing one separate PDF per result
@@ -1097,6 +1132,15 @@ function attachResultEvents(root){
   });
   const printBrowserBtn = root.querySelector('#printBrowser');
   if(printBrowserBtn) printBrowserBtn.addEventListener('click', ()=> window.print());
+  const shareBtn = root.querySelector('#shareBtn');
+  if(shareBtn) shareBtn.addEventListener('click', async ()=>{
+    shareBtn.disabled = true;
+    const orig = shareBtn.innerHTML;
+    shareBtn.textContent = 'তৈরি হচ্ছে...';
+    await shareResultImage(currentExam);
+    shareBtn.disabled = false;
+    shareBtn.innerHTML = orig;
+  });
   const newOne = root.querySelector('#newOne');
   if(newOne) newOne.addEventListener('click', ()=> navigateTo('entry', { exam: blankExam() }));
   const toAdmin = root.querySelector('#toAdmin');
@@ -1369,10 +1413,685 @@ function renderAdminList(host, searchTerm){
   });
 }
 
+// ============================================================================
+// MODEL TEST RESULT SYSTEM — a separate module for multi-subject merit lists.
+// Uses the SAME backend (STORE/API_URL) as the weekly result system above, but
+// with its own key prefixes ("mt:...") so the two never collide or interfere.
+// All identifiers here are prefixed MT_/mt to keep this cleanly separate from
+// the weekly-exam code above it.
+// ============================================================================
+
+let MT_SETTINGS = { adminPin: '' };
+let MT_ADMIN_UNLOCKED = false;
+let MT_VIEW = 'landing'; // landing | admin | admin-sheet | teacher-select | entry | result
+let MT_SHEETS = [];      // cached sheets index: [{id, examName, className, createdAt}]
+let MT_SHEET = null;     // the sheet currently being managed/entered/viewed
+let MT_SUBJECTS = [];    // subjects of MT_SHEET
+let MT_STUDENTS = [];    // student names of MT_SHEET
+let MT_SUBJECT = null;   // the single subject currently being entered (teacher, or admin picking one)
+let MT_ENTRIES = [];     // [{name, mark}] for the current single-subject entry grid
+let MT_UNLOCKED_SUBJECTS = new Set(); // subject ids whose PIN has been passed this session
+
+async function mtLoadSettings(){
+  try{
+    const r = await STORE.get('mt:settings', true);
+    if(r && r.value) MT_SETTINGS = Object.assign({ adminPin:'' }, JSON.parse(r.value));
+  }catch(e){ /* not set yet */ }
+}
+async function mtSaveSettings(){
+  try{ await STORE.set('mt:settings', JSON.stringify(MT_SETTINGS), true); }catch(e){ console.error(e); }
+}
+async function mtVerifyAdminPin(){
+  if(MT_ADMIN_UNLOCKED) return true;
+  if(!MT_SETTINGS.adminPin){
+    const setPin = prompt('এটাই প্রথমবার — মডেল টেস্ট এডমিনের জন্য একটা পিন সেট করুন (৪ সংখ্যা বা তার বেশি):');
+    if(!setPin || setPin.trim().length < 4){ showToast('পিন সেট করা হয়নি'); return false; }
+    MT_SETTINGS.adminPin = setPin.trim();
+    await mtSaveSettings();
+    MT_ADMIN_UNLOCKED = true;
+    return true;
+  }
+  const entered = prompt('মডেল টেস্ট এডমিন পিন দিন:');
+  if(entered === null) return false;
+  if(entered.trim() !== MT_SETTINGS.adminPin){ showToast('পিন মিলছে না'); return false; }
+  MT_ADMIN_UNLOCKED = true;
+  return true;
+}
+async function mtChangeAdminPin(){
+  const current = MT_SETTINGS.adminPin;
+  if(current){
+    const entered = prompt('বর্তমান মডেল টেস্ট এডমিন পিন দিন:');
+    if(entered === null) return;
+    if(entered.trim() !== current){ showToast('বর্তমান পিন মিলছে না'); return; }
+  }
+  const fresh = prompt('নতুন পিন দিন (৪ সংখ্যা বা তার বেশি):');
+  if(!fresh || fresh.trim().length < 4){ showToast('নতুন পিন সেট করা হয়নি'); return; }
+  MT_SETTINGS.adminPin = fresh.trim();
+  await mtSaveSettings();
+  showToast('মডেল টেস্ট এডমিন পিন পরিবর্তন হয়েছে');
+}
+
+async function mtLoadSheetsIndex(){
+  try{
+    const r = await STORE.get('mt:sheets-index', true);
+    MT_SHEETS = (r && r.value) ? JSON.parse(r.value) : [];
+  }catch(e){ MT_SHEETS = []; }
+  return MT_SHEETS;
+}
+async function mtSaveSheetsIndex(){
+  try{ await STORE.set('mt:sheets-index', JSON.stringify(MT_SHEETS), true); }catch(e){ console.error(e); }
+}
+async function mtLoadSubjects(sheetId){
+  try{
+    const r = await STORE.get('mt:subjects:'+sheetId, true);
+    return (r && r.value) ? JSON.parse(r.value) : [];
+  }catch(e){ return []; }
+}
+async function mtSaveSubjects(sheetId, subjects){
+  try{ await STORE.set('mt:subjects:'+sheetId, JSON.stringify(subjects), true); }catch(e){ console.error(e); }
+}
+async function mtLoadStudents(sheetId){
+  try{
+    const r = await STORE.get('mt:students:'+sheetId, true);
+    return (r && r.value) ? JSON.parse(r.value) : [];
+  }catch(e){ return []; }
+}
+async function mtSaveStudents(sheetId, students){
+  try{ await STORE.set('mt:students:'+sheetId, JSON.stringify(students), true); }catch(e){ console.error(e); }
+}
+async function mtLoadMarks(sheetId, subjectId){
+  try{
+    const r = await STORE.get(`mt:marks:${sheetId}:${subjectId}`, true);
+    return (r && r.value) ? JSON.parse(r.value) : {};
+  }catch(e){ return {}; }
+}
+async function mtSaveMarks(sheetId, subjectId, marksObj){
+  try{ await STORE.set(`mt:marks:${sheetId}:${subjectId}`, JSON.stringify(marksObj), true); return true; }
+  catch(e){ console.error(e); return false; }
+}
+async function mtDeleteSheet(sheetId, subjects){
+  MT_SHEETS = MT_SHEETS.filter(s => s.id !== sheetId);
+  await mtSaveSheetsIndex();
+  try{ await STORE.delete('mt:subjects:'+sheetId, true); }catch(e){}
+  try{ await STORE.delete('mt:students:'+sheetId, true); }catch(e){}
+  for(const sub of (subjects||[])){
+    try{ await STORE.delete(`mt:marks:${sheetId}:${sub.id}`, true); }catch(e){}
+  }
+}
+
+function mtNewSheetId(examName, className){
+  return `${sanitizeKey(examName)}-${sanitizeKey(className)}-${Date.now()}`;
+}
+function mtNewSubjectId(){
+  return `sub-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+}
+
+// ---- grading logic ----
+function mtGpFromPercent(pct){
+  if(pct >= 80) return 5;
+  if(pct >= 70) return 4;
+  if(pct >= 60) return 3.5;
+  if(pct >= 50) return 3;
+  if(pct >= 40) return 2;
+  if(pct >= 33) return 1;
+  return 0;
+}
+function mtGradeLabelFromGp(gp){
+  if(gp === 5) return 'A+';
+  if(gp === 4) return 'A';
+  if(gp === 3.5) return 'A-';
+  if(gp === 3) return 'B';
+  if(gp === 2) return 'C';
+  if(gp === 1) return 'D';
+  return 'F';
+}
+function mtOverallGradeFromGpa(gpa, anyZeroGp){
+  if(anyZeroGp) return 'F';
+  if(gpa >= 5) return 'A+';
+  if(gpa >= 4) return 'A';
+  if(gpa >= 3.5) return 'A-';
+  if(gpa >= 3) return 'B';
+  if(gpa >= 2) return 'C';
+  if(gpa >= 1) return 'D';
+  return 'F';
+}
+// dense rank (1,1,2,3 — never 1,1,3,4), descending by value
+function mtDenseRank(items, valueFn){
+  const sorted = items.slice().sort((a,b)=> valueFn(b) - valueFn(a));
+  let rank = 0, prevVal = null;
+  return sorted.map(item=>{
+    const v = valueFn(item);
+    if(prevVal === null || v !== prevVal) rank++;
+    prevVal = v;
+    return Object.assign({}, item, { position: rank });
+  });
+}
+
+// ---- main render dispatcher for this module ----
+function renderMT(){
+  const wrap = el(`<div id="mtRoot"></div>`);
+  if(MT_VIEW === 'landing'){ const inner = mtRenderLanding(); wrap.appendChild(inner); mtAttachLandingEvents(inner); }
+  else if(MT_VIEW === 'admin') wrap.appendChild(mtRenderAdminDashboard());
+  else if(MT_VIEW === 'admin-sheet') wrap.appendChild(mtRenderAdminSheet());
+  else if(MT_VIEW === 'teacher-select') wrap.appendChild(mtRenderTeacherSelect());
+  else if(MT_VIEW === 'entry') wrap.appendChild(mtRenderEntry());
+  else if(MT_VIEW === 'result') wrap.appendChild(mtRenderResultView());
+  return wrap;
+}
+function mtGo(view){ MT_VIEW = view; render(); }
+
+function mtRenderLanding(){
+  return el(`
+    <div class="card hero">
+      <h2>মডেল টেস্ট রেজাল্ট</h2>
+      <p>একাধিক সাবজেক্টের নম্বর নিয়ে মেধাক্রম (merit list) তৈরির জন্য — একাধিক শিক্ষক একসাথে নিজের নিজের সাবজেক্টের নম্বর তুলবেন, একই শেয়ার্ড শীটে।</p>
+      <div class="row-actions">
+        <button class="btn" id="mtGoAdmin">${ICON_LOCK} এডমিন হিসেবে ঢুকুন</button>
+        <button class="btn secondary" id="mtGoTeacher">শিক্ষক হিসেবে ঢুকুন</button>
+      </div>
+    </div>
+  `);
+}
+
+function mtAttachLandingEvents(root){
+  const a = root.querySelector('#mtGoAdmin');
+  if(a) a.addEventListener('click', async ()=>{
+    const ok = await mtVerifyAdminPin();
+    if(!ok) return;
+    await mtLoadSheetsIndex();
+    mtGo('admin');
+  });
+  const t = root.querySelector('#mtGoTeacher');
+  if(t) t.addEventListener('click', async ()=>{
+    await mtLoadSheetsIndex();
+    mtGo('teacher-select');
+  });
+}
+
+// ---------- Admin dashboard: list/create/delete sheets ----------
+function mtRenderAdminDashboard(){
+  const wrap = el(`
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <h2 style="margin:0;">মডেল টেস্ট — শীটসমূহ</h2>
+          <button class="btn small secondary" id="mtChangePinBtn">${ICON_GEAR} এডমিন পিন পরিবর্তন</button>
+        </div>
+        <div id="mtSheetList" style="margin-top:14px;">
+          ${MT_SHEETS.length===0 ? '<p class="empty">এখনো কোনো শীট তৈরি হয়নি।</p>' : ''}
+        </div>
+        <div class="row-actions">
+          <button class="btn" id="mtNewSheetBtn">${ICON_PLUS} নতুন শীট তৈরি করুন</button>
+        </div>
+        <div id="mtNewSheetForm" style="display:none;margin-top:16px;border-top:1px solid var(--line);padding-top:16px;">
+          <div class="grid">
+            <div class="field"><label>পরীক্ষার নাম *</label><input type="text" id="mtExamName" placeholder="যেমন: ১ম মডেল টেস্ট"/></div>
+            <div class="field"><label>শ্রেণি *</label><input type="text" id="mtClassName" placeholder="যেমন: ৯ম শ্রেণি"/></div>
+          </div>
+          <div class="field">
+            <label>সাবজেক্ট কাঠামো কপি করুন (ঐচ্ছিক)</label>
+            <select id="mtCopyFrom">
+              <option value="">— খালি থেকে শুরু করুন —</option>
+              ${MT_SHEETS.map(s=>`<option value="${s.id}">${s.examName} — ${s.className}</option>`).join('')}
+            </select>
+          </div>
+          <div class="row-actions">
+            <button class="btn" id="mtCreateSheetBtn">তৈরি করুন</button>
+            <button class="btn secondary" id="mtCancelNewSheet">বাতিল</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+  const listHost = wrap.querySelector('#mtSheetList');
+  MT_SHEETS.slice().sort((a,b)=> b.createdAt - a.createdAt).forEach(s=>{
+    const row = el(`
+      <div class="exam-list-item">
+        <div><b>${s.examName}</b> — ${s.className}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn small secondary" data-manage="${s.id}">পরিচালনা</button>
+          <button class="btn small secondary" data-view-result="${s.id}">ফলাফল দেখুন</button>
+          <button class="btn small danger" data-delete-sheet="${s.id}">✕ মুছুন</button>
+        </div>
+      </div>
+    `);
+    row.querySelector('[data-manage]').addEventListener('click', async ()=>{
+      MT_SHEET = s;
+      MT_SUBJECTS = await mtLoadSubjects(s.id);
+      MT_STUDENTS = await mtLoadStudents(s.id);
+      mtGo('admin-sheet');
+    });
+    row.querySelector('[data-view-result]').addEventListener('click', ()=>{
+      MT_SHEET = s;
+      mtGo('result');
+    });
+    row.querySelector('[data-delete-sheet]').addEventListener('click', async ()=>{
+      const sure = confirm(`নিশ্চিত? "${s.examName} — ${s.className}" শীটটি ও এর সব সাবজেক্ট/নম্বর স্থায়ীভাবে মুছে যাবে।`);
+      if(!sure) return;
+      const subs = await mtLoadSubjects(s.id);
+      await mtDeleteSheet(s.id, subs);
+      showToast('শীট মুছে ফেলা হয়েছে');
+      mtGo('admin');
+    });
+    listHost.appendChild(row);
+  });
+
+  wrap.querySelector('#mtChangePinBtn').addEventListener('click', async ()=>{ await mtChangeAdminPin(); });
+  const newBtn = wrap.querySelector('#mtNewSheetBtn');
+  const form = wrap.querySelector('#mtNewSheetForm');
+  newBtn.addEventListener('click', ()=>{ form.style.display = 'block'; newBtn.style.display='none'; });
+  wrap.querySelector('#mtCancelNewSheet').addEventListener('click', ()=>{ form.style.display='none'; newBtn.style.display='inline-flex'; });
+  wrap.querySelector('#mtCreateSheetBtn').addEventListener('click', async ()=>{
+    const examName = wrap.querySelector('#mtExamName').value.trim();
+    const className = wrap.querySelector('#mtClassName').value.trim();
+    if(!examName || !className){ showToast('পরীক্ষার নাম ও শ্রেণি দিন'); return; }
+    const copyFromId = wrap.querySelector('#mtCopyFrom').value;
+    const id = mtNewSheetId(examName, className);
+    const newSheet = { id, examName, className, createdAt: Date.now() };
+    MT_SHEETS.push(newSheet);
+    await mtSaveSheetsIndex();
+    let subjects = [];
+    if(copyFromId){
+      const srcSubjects = await mtLoadSubjects(copyFromId);
+      subjects = srcSubjects.map(s => ({ id: mtNewSubjectId(), name: s.name, fullMarks: s.fullMarks, pin: '' }));
+    }
+    await mtSaveSubjects(id, subjects);
+    await mtSaveStudents(id, []);
+    MT_SHEET = newSheet;
+    MT_SUBJECTS = subjects;
+    MT_STUDENTS = [];
+    showToast('নতুন শীট তৈরি হয়েছে');
+    mtGo('admin-sheet');
+  });
+  return wrap;
+}
+
+// ---------- Admin: manage one sheet's subjects + students ----------
+function mtRenderAdminSheet(){
+  const sheet = MT_SHEET;
+  const subjectRows = MT_SUBJECTS.map((s,i)=>`
+    <tr data-idx="${i}">
+      <td>${i+1}</td>
+      <td><input type="text" class="mts-name" value="${s.name}"/></td>
+      <td><input type="number" class="mts-full" value="${s.fullMarks}" style="width:80px;"/></td>
+      <td><input type="text" class="mts-pin" value="${s.pin||''}" placeholder="ঐচ্ছিক" style="width:100px;"/></td>
+      <td><button class="btn small secondary" data-enter-subject="${s.id}">নম্বর দিন</button></td>
+      <td><button class="btn small danger" data-remove-subject="${i}">✕</button></td>
+    </tr>
+  `).join('');
+  const wrap = el(`
+    <div>
+      <div class="card">
+        <button class="btn small secondary" id="mtBackToDash">← শীট তালিকায় ফিরুন</button>
+        <h2 style="margin-top:14px;">${sheet.examName} — ${sheet.className}</h2>
+
+        <h3 style="margin:18px 0 8px;font-size:15px;color:var(--accent-dark);">সাবজেক্টসমূহ</h3>
+        <table>
+          <thead><tr><th>#</th><th>নাম</th><th>পূর্ণমান</th><th>পিন</th><th></th><th></th></tr></thead>
+          <tbody id="mtSubjectRows">${subjectRows}</tbody>
+        </table>
+        <div class="row-actions">
+          <button class="btn small secondary" id="mtAddSubjectBtn">${ICON_PLUS} সাবজেক্ট যোগ করুন</button>
+          <button class="btn small" id="mtSaveSubjectsBtn">সাবজেক্ট তালিকা সংরক্ষণ করুন</button>
+        </div>
+
+        <h3 style="margin:24px 0 8px;font-size:15px;color:var(--accent-dark);">শিক্ষার্থী তালিকা (${toBnDigits(MT_STUDENTS.length)} জন)</h3>
+        <p class="muted" style="font-size:13px;">শিক্ষার্থী যোগ/মুছতে "নম্বর দিন" বাটনে গিয়ে যেকোনো সাবজেক্ট খুলুন — সেখান থেকেই তালিকা পরিচালনা করা যায়।</p>
+
+        <div class="row-actions" style="margin-top:20px;">
+          <button class="btn secondary" id="mtViewResultBtn">ফলাফল শীট দেখুন / প্রিন্ট</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  wrap.querySelector('#mtBackToDash').addEventListener('click', ()=> mtGo('admin'));
+  wrap.querySelector('#mtViewResultBtn').addEventListener('click', ()=> mtGo('result'));
+
+  wrap.querySelector('#mtAddSubjectBtn').addEventListener('click', ()=>{
+    MT_SUBJECTS.push({ id: mtNewSubjectId(), name:'', fullMarks:100, pin:'' });
+    render();
+  });
+  wrap.querySelectorAll('[data-remove-subject]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      MT_SUBJECTS.splice(Number(btn.dataset.removeSubject), 1);
+      render();
+    });
+  });
+  wrap.querySelectorAll('[data-enter-subject]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const subj = MT_SUBJECTS.find(s=>s.id===btn.dataset.enterSubject);
+      if(!subj) return;
+      MT_SUBJECT = subj;
+      const marks = await mtLoadMarks(sheet.id, subj.id);
+      MT_ENTRIES = MT_STUDENTS.map(n=>({ name:n, mark: (marks[n]!==undefined ? marks[n] : null) }));
+      mtGo('entry');
+    });
+  });
+  wrap.querySelector('#mtSaveSubjectsBtn').addEventListener('click', async ()=>{
+    wrap.querySelectorAll('#mtSubjectRows tr').forEach(tr=>{
+      const idx = Number(tr.dataset.idx);
+      MT_SUBJECTS[idx].name = tr.querySelector('.mts-name').value.trim();
+      MT_SUBJECTS[idx].fullMarks = Number(tr.querySelector('.mts-full').value) || 100;
+      MT_SUBJECTS[idx].pin = tr.querySelector('.mts-pin').value.trim();
+    });
+    MT_SUBJECTS = MT_SUBJECTS.filter(s=>s.name);
+    await mtSaveSubjects(sheet.id, MT_SUBJECTS);
+    showToast('সাবজেক্ট তালিকা সংরক্ষিত হয়েছে');
+    render();
+  });
+  return wrap;
+}
+
+// ---------- Teacher: pick sheet + subject ----------
+function mtRenderTeacherSelect(){
+  const wrap = el(`
+    <div class="card">
+      <button class="btn small secondary" id="mtBackToLanding">← পেছনে যান</button>
+      <h2 style="margin-top:14px;">শীট ও সাবজেক্ট বেছে নিন</h2>
+      <div class="field">
+        <label>শীট (পরীক্ষা — শ্রেণি) *</label>
+        <select id="mtPickSheet">
+          <option value="">— বেছে নিন —</option>
+          ${MT_SHEETS.map(s=>`<option value="${s.id}">${s.examName} — ${s.className}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" id="mtSubjectPickWrap" style="display:none;">
+        <label>সাবজেক্ট *</label>
+        <select id="mtPickSubject"></select>
+      </div>
+      <div class="row-actions">
+        <button class="btn" id="mtEnterSubjectBtn" disabled>নম্বর এন্ট্রিতে যান →</button>
+        <button class="btn secondary" id="mtTeacherViewResultBtn" disabled>শুধু ফলাফল দেখুন</button>
+      </div>
+    </div>
+  `);
+  const sheetSel = wrap.querySelector('#mtPickSheet');
+  const subjWrap = wrap.querySelector('#mtSubjectPickWrap');
+  const subjSel = wrap.querySelector('#mtPickSubject');
+  const enterBtn = wrap.querySelector('#mtEnterSubjectBtn');
+  const viewResultBtn = wrap.querySelector('#mtTeacherViewResultBtn');
+
+  wrap.querySelector('#mtBackToLanding').addEventListener('click', ()=> mtGo('landing'));
+
+  sheetSel.addEventListener('change', async ()=>{
+    const id = sheetSel.value;
+    if(!id){ subjWrap.style.display='none'; enterBtn.disabled=true; viewResultBtn.disabled=true; return; }
+    MT_SHEET = MT_SHEETS.find(s=>s.id===id);
+    MT_SUBJECTS = await mtLoadSubjects(id);
+    subjSel.innerHTML = '<option value="">— বেছে নিন —</option>' + MT_SUBJECTS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    subjWrap.style.display = 'block';
+    viewResultBtn.disabled = false;
+    enterBtn.disabled = true;
+  });
+  subjSel.addEventListener('change', ()=>{ enterBtn.disabled = !subjSel.value; });
+
+  enterBtn.addEventListener('click', async ()=>{
+    const subj = MT_SUBJECTS.find(s=>s.id===subjSel.value);
+    if(!subj) return;
+    if(subj.pin && !MT_UNLOCKED_SUBJECTS.has(subj.id)){
+      const entered = prompt(`"${subj.name}" সাবজেক্টের পিন দিন:`);
+      if(entered === null) return;
+      if(entered.trim() !== subj.pin){ showToast('পিন মিলছে না'); return; }
+      MT_UNLOCKED_SUBJECTS.add(subj.id);
+    }
+    MT_SUBJECT = subj;
+    MT_STUDENTS = await mtLoadStudents(MT_SHEET.id);
+    const marks = await mtLoadMarks(MT_SHEET.id, subj.id);
+    MT_ENTRIES = MT_STUDENTS.map(n=>({ name:n, mark: (marks[n]!==undefined ? marks[n] : null) }));
+    mtGo('entry');
+  });
+  viewResultBtn.addEventListener('click', ()=> mtGo('result'));
+  return wrap;
+}
+
+// ---------- Single-subject marks entry grid (shared: teacher and admin use this) ----------
+function mtRenderEntry(){
+  const rows = MT_ENTRIES.map((e,i)=>`
+    <tr data-idx="${i}">
+      <td>${i+1}</td>
+      <td><input type="text" class="mte-name" value="${e.name}" placeholder="শিক্ষার্থীর নাম"/></td>
+      <td><input type="number" class="mte-mark" value="${e.mark!==null && e.mark!==undefined ? e.mark : ''}" placeholder="অনুপস্থিত হলে খালি" min="0" max="${MT_SUBJECT.fullMarks}"/></td>
+      <td><button class="btn small danger" data-remove="${i}">✕</button></td>
+    </tr>
+  `).join('');
+  const wrap = el(`
+    <div class="card">
+      <button class="btn small secondary" id="mtBackFromEntry">← পেছনে যান</button>
+      <h2 style="margin-top:14px;">${MT_SHEET.examName} — ${MT_SHEET.className} — ${MT_SUBJECT.name}</h2>
+      <p class="muted">পূর্ণমান: <b>${toBnDigits(MT_SUBJECT.fullMarks)}</b></p>
+      <table>
+        <thead><tr><th style="width:44px;">ক্রম</th><th>শিক্ষার্থীর নাম</th><th style="width:120px;">নম্বর</th><th style="width:44px;"></th></tr></thead>
+        <tbody id="mtEntryRows">${rows}</tbody>
+      </table>
+      <div class="row-actions">
+        <button class="btn small secondary" id="mtAddStudentBtn">${ICON_PLUS} শিক্ষার্থী যোগ করুন</button>
+      </div>
+      <div class="row-actions" style="margin-top:16px;">
+        <button class="btn" id="mtSaveEntryBtn">সংরক্ষণ করুন</button>
+        <button class="btn secondary" id="mtViewResultFromEntry">ফলাফল শীট দেখুন</button>
+      </div>
+    </div>
+  `);
+
+  wrap.querySelector('#mtBackFromEntry').addEventListener('click', ()=>{
+    mtGo(MT_ADMIN_UNLOCKED ? 'admin-sheet' : 'teacher-select');
+  });
+  wrap.querySelector('#mtAddStudentBtn').addEventListener('click', ()=>{
+    MT_ENTRIES.push({ name:'', mark:null });
+    render();
+    setTimeout(()=>{
+      const rows2 = document.querySelectorAll('#mtEntryRows tr');
+      const last = rows2[rows2.length-1];
+      if(last){ const inp = last.querySelector('.mte-name'); if(inp) inp.focus(); }
+    },0);
+  });
+  wrap.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      MT_ENTRIES.splice(Number(btn.dataset.remove), 1);
+      render();
+    });
+  });
+  wrap.querySelectorAll('#mtEntryRows tr').forEach(tr=>{
+    const idx = Number(tr.dataset.idx);
+    tr.querySelector('.mte-name').addEventListener('input', (e)=>{ MT_ENTRIES[idx].name = e.target.value; });
+    tr.querySelector('.mte-mark').addEventListener('input', (e)=>{
+      MT_ENTRIES[idx].mark = e.target.value === '' ? null : Number(e.target.value);
+    });
+  });
+  wrap.querySelector('#mtViewResultFromEntry').addEventListener('click', ()=> mtGo('result'));
+
+  wrap.querySelector('#mtSaveEntryBtn').addEventListener('click', async (evt)=>{
+    const btn = evt.target;
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = 'সংরক্ষণ হচ্ছে...';
+    MT_ENTRIES = MT_ENTRIES.filter(e=> e.name.trim()!=='');
+    const names = MT_ENTRIES.map(e=>e.name.trim());
+    await mtSaveStudents(MT_SHEET.id, names);
+    MT_STUDENTS = names;
+    const marksObj = {};
+    MT_ENTRIES.forEach(e=>{ marksObj[e.name.trim()] = (e.mark===null || e.mark===undefined) ? null : e.mark; });
+    const ok = await mtSaveMarks(MT_SHEET.id, MT_SUBJECT.id, marksObj);
+    btn.disabled = false;
+    btn.textContent = orig;
+    if(ok) showToast('নম্বর সংরক্ষিত হয়েছে');
+    else showToast('সংরক্ষণে সমস্যা হয়েছে, আবার চেষ্টা করুন');
+  });
+  return wrap;
+}
+
+// ---------- Merit list / result sheet (read-only, computed) ----------
+async function mtComputeResult(sheet){
+  const subjects = await mtLoadSubjects(sheet.id);
+  const students = await mtLoadStudents(sheet.id);
+  const marksBySubject = {};
+  for(const sub of subjects){
+    marksBySubject[sub.id] = await mtLoadMarks(sheet.id, sub.id);
+  }
+  const rows = students.map(name=>{
+    let total = 0, gpaSum = 0, anyZeroGp = false;
+    const perSubject = subjects.map(sub=>{
+      const mark = marksBySubject[sub.id] ? marksBySubject[sub.id][name] : null;
+      const numMark = (mark===null || mark===undefined || mark==='') ? 0 : Number(mark);
+      const pct = sub.fullMarks > 0 ? (numMark/sub.fullMarks)*100 : 0;
+      const gp = mtGpFromPercent(pct);
+      if(gp === 0) anyZeroGp = true;
+      total += numMark;
+      gpaSum += gp;
+      return { subjectId: sub.id, mark: (mark===null||mark===undefined||mark==='') ? null : numMark, gp };
+    });
+    const gpa = subjects.length ? gpaSum / subjects.length : 0;
+    const grading = mtOverallGradeFromGpa(gpa, anyZeroGp);
+    return { name, perSubject, total, gpa, grading };
+  });
+  const ranked = mtDenseRank(rows, r=>r.total);
+  ranked.sort((a,b)=> a.position - b.position);
+  return { subjects, students, rows: ranked };
+}
+
+function mtRenderResultView(){
+  const wrap = el(`
+    <div>
+      <div class="card">
+        <button class="btn small secondary" id="mtBackFromResult">← পেছনে যান</button>
+        <h2 style="margin-top:14px;">${MT_SHEET.examName} — ${MT_SHEET.className} — ফলাফল শীট</h2>
+        <div id="mtResultHost"><p class="muted">লোড হচ্ছে...</p></div>
+        <div class="row-actions" id="mtResultActions" style="display:none;">
+          <button class="btn" id="mtDownloadResultPdf">PDF ডাউনলোড করুন</button>
+        </div>
+      </div>
+      <div class="print-sheet" id="mtPdfSheet"></div>
+    </div>
+  `);
+  wrap.querySelector('#mtBackFromResult').addEventListener('click', ()=>{
+    mtGo(MT_ADMIN_UNLOCKED ? 'admin' : 'teacher-select');
+  });
+  (async ()=>{
+    const data = await mtComputeResult(MT_SHEET);
+    const host = wrap.querySelector('#mtResultHost');
+    if(!data.students.length){
+      host.innerHTML = '<p class="empty">এই শীটে এখনো কোনো শিক্ষার্থী নেই।</p>';
+      return;
+    }
+    host.innerHTML = mtResultTableHtml(MT_SHEET, data, false);
+    wrap.querySelector('#mtResultActions').style.display = 'flex';
+    wrap.querySelector('#mtDownloadResultPdf').addEventListener('click', async (evt)=>{
+      const btn = evt.target;
+      btn.disabled = true;
+      const orig = btn.textContent;
+      btn.textContent = 'তৈরি হচ্ছে...';
+      await mtDownloadResultPdf(MT_SHEET, data);
+      btn.disabled = false;
+      btn.textContent = orig;
+    });
+  })();
+  return wrap;
+}
+
+// Builds the merit-list table HTML. forPrint=false renders normal on-screen sizing (scrolls
+// horizontally if many subjects); forPrint=true is used inside the off-screen PDF canvas capture.
+function mtResultTableHtml(sheet, data, forPrint){
+  const { subjects, rows } = data;
+  const fullMarksTotal = subjects.reduce((s,x)=> s + Number(x.fullMarks||0), 0);
+  const headerCells = subjects.map(s=>`<th colspan="2">${s.name}</th>`).join('');
+  const subHeaderCells = subjects.map(()=>`<th>নম্বর</th><th>GP</th>`).join('');
+  const bodyRows = rows.map((r,i)=>{
+    const subjCells = r.perSubject.map(p=>`
+      <td>${p.mark===null ? '—' : toBnDigits(p.mark)}</td>
+      <td>${p.mark===null ? '০' : toBnDigits(p.gp)}</td>
+    `).join('');
+    return `
+      <tr>
+        <td>${toBnDigits(i+1)}</td>
+        <td style="text-align:left;">${r.name}</td>
+        ${subjCells}
+        <td>${toBnDigits(r.total)}</td>
+        <td>${toBnDigits(r.gpa.toFixed(2))}</td>
+        <td>${r.grading}</td>
+        <td>${toBnDigits(r.position)}</td>
+      </tr>
+    `;
+  }).join('');
+  const tableClass = forPrint ? 'ps-table' : '';
+  return `
+    ${forPrint ? `
+    <div class="ps-header-row">
+      <img class="ps-logo" src="data:image/jpeg;base64,${LOGO_B64}" alt="logo"/>
+      <div class="ps-titleblock">
+        <h1>${SETTINGS.centerName}</h1>
+        <p>${sheet.examName} — Class:- ${sheet.className} — Full Marks:- ${toBnDigits(fullMarksTotal)}</p>
+      </div>
+      <div class="ps-logo-spacer"></div>
+    </div>` : ''}
+    <div style="overflow-x:auto;">
+    <table class="${tableClass}" style="min-width:${forPrint?'auto':'900px'};">
+      <thead>
+        <tr><th rowspan="2">ক্রম</th><th rowspan="2">শিক্ষার্থীর নাম</th>${headerCells}<th rowspan="2">T.Marks</th><th rowspan="2">GPA</th><th rowspan="2">Grading</th><th rowspan="2">Position</th></tr>
+        <tr>${subHeaderCells}</tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+    </div>
+    ${forPrint ? `<p style="margin-top:14px;font-size:12px;text-align:center;">মার্কের ভিত্তিতে মেধাস্থান নির্ধারণ করা হয়েছে।</p>` : ''}
+  `;
+}
+
+// Multi-page PDF: chunks students into pages of 32 rows, repeating the full header+column
+// titles on every page (per the spec — mobile browsers don't repeat table headers on their own).
+async function mtDownloadResultPdf(sheet, data){
+  try{
+    const ROWS_PER_PAGE = 32;
+    const { subjects, rows } = data;
+    const chunks = [];
+    for(let i=0;i<rows.length;i+=ROWS_PER_PAGE){ chunks.push(rows.slice(i, i+ROWS_PER_PAGE)); }
+    if(!chunks.length) chunks.push([]);
+
+    const sheetEl = document.getElementById('mtPdfSheet');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('l','pt','a4'); // landscape — many subject columns need the width
+    let first = true;
+
+    for(let c=0;c<chunks.length;c++){
+      const chunkData = { subjects, rows: chunks[c] };
+      sheetEl.innerHTML = mtResultTableHtml(sheet, chunkData, true);
+      const prevStyle = sheetEl.getAttribute('style') || '';
+      sheetEl.style.display = 'block';
+      sheetEl.style.position = 'fixed';
+      sheetEl.style.top = '0';
+      sheetEl.style.left = '-10000px';
+      sheetEl.style.width = '1400px';
+      sheetEl.style.background = '#ffffff';
+      sheetEl.style.padding = '24px';
+      sheetEl.style.zIndex = '-1';
+      await new Promise(r=>setTimeout(r,60));
+      const canvas = await html2canvas(sheetEl, { scale:2, backgroundColor:'#ffffff', useCORS:true });
+      sheetEl.setAttribute('style', prevStyle);
+      sheetEl.innerHTML = '';
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const ratio = Math.min((pageWidth-40)/canvas.width, (pageHeight-40)/canvas.height);
+      const imgW = canvas.width*ratio, imgH = canvas.height*ratio;
+      if(!first) pdf.addPage();
+      first = false;
+      pdf.addImage(imgData, 'JPEG', (pageWidth-imgW)/2, 20, imgW, imgH);
+    }
+    const fname = `${filenameSafe(sheet.examName)}_${filenameSafe(sheet.className)}_merit-list.pdf`.replace(/_+/g,'_');
+    pdf.save(fname);
+    showToast('PDF ডাউনলোড সম্পন্ন হয়েছে');
+  }catch(err){
+    console.error(err);
+    showToast('PDF তৈরিতে সমস্যা হয়েছে, আবার চেষ্টা করুন');
+  }
+}
+
+
 async function init(){
   const app = document.getElementById('app');
   app.innerHTML = `<div style="text-align:center;padding:60px 10px;color:var(--muted);">লোড হচ্ছে...</div>`;
-  await Promise.all([loadSettings(), loadFormMeta()]);
+  await Promise.all([loadSettings(), loadFormMeta(), mtLoadSettings()]);
   history.replaceState({ view: 'home' }, '', '#home'); // establish the starting point for back/forward
   render();
 }
