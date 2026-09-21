@@ -1573,6 +1573,7 @@ function renderMT(){
   if(MT_VIEW === 'landing'){ const inner = mtRenderLanding(); wrap.appendChild(inner); mtAttachLandingEvents(inner); }
   else if(MT_VIEW === 'admin') wrap.appendChild(mtRenderAdminDashboard());
   else if(MT_VIEW === 'admin-sheet') wrap.appendChild(mtRenderAdminSheet());
+  else if(MT_VIEW === 'public-select') wrap.appendChild(mtRenderPublicSelect());
   else if(MT_VIEW === 'teacher-select') wrap.appendChild(mtRenderTeacherSelect());
   else if(MT_VIEW === 'entry') wrap.appendChild(mtRenderEntry());
   else if(MT_VIEW === 'result') wrap.appendChild(mtRenderResultView());
@@ -1586,14 +1587,20 @@ function mtRenderLanding(){
       <h2>মডেল টেস্ট রেজাল্ট</h2>
       <p>একাধিক সাবজেক্টের নম্বর নিয়ে মেধাক্রম (merit list) তৈরির জন্য — একাধিক শিক্ষক একসাথে নিজের নিজের সাবজেক্টের নম্বর তুলবেন, একই শেয়ার্ড শীটে।</p>
       <div class="row-actions">
-        <button class="btn" id="mtGoAdmin">${ICON_LOCK} এডমিন হিসেবে ঢুকুন</button>
+        <button class="btn" id="mtGoPublic">${ICON_EYE} ফলাফল দেখুন / প্রিন্ট করুন</button>
         <button class="btn secondary" id="mtGoTeacher">শিক্ষক হিসেবে ঢুকুন</button>
+        <button class="btn secondary" id="mtGoAdmin">${ICON_LOCK} এডমিন হিসেবে ঢুকুন</button>
       </div>
     </div>
   `);
 }
 
 function mtAttachLandingEvents(root){
+  const p = root.querySelector('#mtGoPublic');
+  if(p) p.addEventListener('click', async ()=>{
+    await mtLoadSheetsIndex();
+    mtGo('public-select');
+  });
   const a = root.querySelector('#mtGoAdmin');
   if(a) a.addEventListener('click', async ()=>{
     const ok = await mtVerifyAdminPin();
@@ -1784,6 +1791,38 @@ function mtRenderAdminSheet(){
 }
 
 // ---------- Teacher: pick sheet + subject ----------
+// ---------- Public (guardian/student): pick a sheet and view its result — no login at all ----------
+function mtRenderPublicSelect(){
+  const wrap = el(`
+    <div class="card">
+      <button class="btn small secondary" id="mtBackToLandingPublic">← পেছনে যান</button>
+      <h2 style="margin-top:14px;">ফলাফল দেখুন</h2>
+      ${MT_SHEETS.length===0 ? '<p class="empty">এখনো কোনো মডেল টেস্ট শীট তৈরি হয়নি।</p>' : ''}
+      <div class="field">
+        <label>শীট বেছে নিন (পরীক্ষা — শ্রেণি)</label>
+        <select id="mtPublicPickSheet">
+          <option value="">— বেছে নিন —</option>
+          ${MT_SHEETS.map(s=>`<option value="${s.id}">${s.examName} — ${s.className}</option>`).join('')}
+        </select>
+      </div>
+      <div class="row-actions">
+        <button class="btn" id="mtPublicViewBtn" disabled>ফলাফল দেখুন</button>
+      </div>
+    </div>
+  `);
+  wrap.querySelector('#mtBackToLandingPublic').addEventListener('click', ()=> mtGo('landing'));
+  const sel = wrap.querySelector('#mtPublicPickSheet');
+  const viewBtn = wrap.querySelector('#mtPublicViewBtn');
+  sel.addEventListener('change', ()=>{ viewBtn.disabled = !sel.value; });
+  viewBtn.addEventListener('click', ()=>{
+    MT_SHEET = MT_SHEETS.find(s=>s.id===sel.value);
+    if(!MT_SHEET) return;
+    mtGo('result');
+  });
+  return wrap;
+}
+
+
 function mtRenderTeacherSelect(){
   const wrap = el(`
     <div class="card">
