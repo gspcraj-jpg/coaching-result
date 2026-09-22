@@ -533,7 +533,7 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
-const APP_VERSION_DATE = "21-09-2026"; // bump this string every time a new version is shipped
+const APP_VERSION_DATE = "22-09-2026"; // bump this string every time a new version is shipped
 
 function render(){
   const app = document.getElementById('app');
@@ -1421,55 +1421,18 @@ function renderAdminList(host, searchTerm){
 // the weekly-exam code above it.
 // ============================================================================
 
-let MT_SETTINGS = { adminPin: '' };
-let MT_ADMIN_UNLOCKED = false;
-let MT_VIEW = 'landing'; // landing | admin | admin-sheet | teacher-select | entry | result
+let MT_VIEW = 'landing'; // landing | admin | admin-sheet | public-select | entry | result
 let MT_SHEETS = [];      // cached sheets index: [{id, examName, className, createdAt}]
 let MT_SHEET = null;     // the sheet currently being managed/entered/viewed
 let MT_SUBJECTS = [];    // subjects of MT_SHEET
 let MT_STUDENTS = [];    // student names of MT_SHEET
-let MT_SUBJECT = null;   // the single subject currently being entered (teacher, or admin picking one)
+let MT_SUBJECT = null;   // the single subject currently being entered
 let MT_ENTRIES = [];     // [{name, mark}] for the current single-subject entry grid
-let MT_UNLOCKED_SUBJECTS = new Set(); // subject ids whose PIN has been passed this session
 
-async function mtLoadSettings(){
-  try{
-    const r = await STORE.get('mt:settings', true);
-    if(r && r.value) MT_SETTINGS = Object.assign({ adminPin:'' }, JSON.parse(r.value));
-  }catch(e){ /* not set yet */ }
-}
-async function mtSaveSettings(){
-  try{ await STORE.set('mt:settings', JSON.stringify(MT_SETTINGS), true); }catch(e){ console.error(e); }
-}
-async function mtVerifyAdminPin(){
-  if(MT_ADMIN_UNLOCKED) return true;
-  if(!MT_SETTINGS.adminPin){
-    const setPin = prompt('এটাই প্রথমবার — মডেল টেস্ট এডমিনের জন্য একটা পিন সেট করুন (৪ সংখ্যা বা তার বেশি):');
-    if(!setPin || setPin.trim().length < 4){ showToast('পিন সেট করা হয়নি'); return false; }
-    MT_SETTINGS.adminPin = setPin.trim();
-    await mtSaveSettings();
-    MT_ADMIN_UNLOCKED = true;
-    return true;
-  }
-  const entered = prompt('মডেল টেস্ট এডমিন পিন দিন:');
-  if(entered === null) return false;
-  if(entered.trim() !== MT_SETTINGS.adminPin){ showToast('পিন মিলছে না'); return false; }
-  MT_ADMIN_UNLOCKED = true;
-  return true;
-}
-async function mtChangeAdminPin(){
-  const current = MT_SETTINGS.adminPin;
-  if(current){
-    const entered = prompt('বর্তমান মডেল টেস্ট এডমিন পিন দিন:');
-    if(entered === null) return;
-    if(entered.trim() !== current){ showToast('বর্তমান পিন মিলছে না'); return; }
-  }
-  const fresh = prompt('নতুন পিন দিন (৪ সংখ্যা বা তার বেশি):');
-  if(!fresh || fresh.trim().length < 4){ showToast('নতুন পিন সেট করা হয়নি'); return; }
-  MT_SETTINGS.adminPin = fresh.trim();
-  await mtSaveSettings();
-  showToast('মডেল টেস্ট এডমিন পিন পরিবর্তন হয়েছে');
-}
+// Model Test management (creating sheets, subjects, entering/editing marks) is gated behind the
+// SAME shared "শিক্ষক লগইন" pin as the rest of the site (verifyTeacherPin/TEACHER_UNLOCKED) —
+// one password for all staff, exactly like the weekly result system. There is no separate MT
+// admin pin or per-subject pin anymore: only public result-viewing is open without any login.
 
 async function mtLoadSheetsIndex(){
   try{
@@ -1574,7 +1537,6 @@ function renderMT(){
   else if(MT_VIEW === 'admin') wrap.appendChild(mtRenderAdminDashboard());
   else if(MT_VIEW === 'admin-sheet') wrap.appendChild(mtRenderAdminSheet());
   else if(MT_VIEW === 'public-select') wrap.appendChild(mtRenderPublicSelect());
-  else if(MT_VIEW === 'teacher-select') wrap.appendChild(mtRenderTeacherSelect());
   else if(MT_VIEW === 'entry') wrap.appendChild(mtRenderEntry());
   else if(MT_VIEW === 'result') wrap.appendChild(mtRenderResultView());
   return wrap;
@@ -1585,11 +1547,10 @@ function mtRenderLanding(){
   return el(`
     <div class="card hero">
       <h2>মডেল টেস্ট রেজাল্ট</h2>
-      <p>একাধিক সাবজেক্টের নম্বর নিয়ে মেধাক্রম (merit list) তৈরির জন্য — একাধিক শিক্ষক একসাথে নিজের নিজের সাবজেক্টের নম্বর তুলবেন, একই শেয়ার্ড শীটে।</p>
+      <p>একাধিক সাবজেক্টের নম্বর নিয়ে মেধাক্রম (merit list) তৈরির জন্য — শিক্ষকরা একসাথে নিজের নিজের সাবজেক্টের নম্বর তুলবেন, একই শেয়ার্ড শীটে।</p>
       <div class="row-actions">
         <button class="btn" id="mtGoPublic">${ICON_EYE} ফলাফল দেখুন / প্রিন্ট করুন</button>
-        <button class="btn secondary" id="mtGoTeacher">শিক্ষক হিসেবে ঢুকুন</button>
-        <button class="btn secondary" id="mtGoAdmin">${ICON_LOCK} এডমিন হিসেবে ঢুকুন</button>
+        <button class="btn secondary" id="mtGoTeacher">${ICON_LOCK} শিক্ষক লগইন</button>
       </div>
     </div>
   `);
@@ -1601,17 +1562,12 @@ function mtAttachLandingEvents(root){
     await mtLoadSheetsIndex();
     mtGo('public-select');
   });
-  const a = root.querySelector('#mtGoAdmin');
-  if(a) a.addEventListener('click', async ()=>{
-    const ok = await mtVerifyAdminPin();
+  const t = root.querySelector('#mtGoTeacher');
+  if(t) t.addEventListener('click', async ()=>{
+    const ok = await verifyTeacherPin(); // same shared pin as the rest of the site
     if(!ok) return;
     await mtLoadSheetsIndex();
     mtGo('admin');
-  });
-  const t = root.querySelector('#mtGoTeacher');
-  if(t) t.addEventListener('click', async ()=>{
-    await mtLoadSheetsIndex();
-    mtGo('teacher-select');
   });
 }
 
@@ -1622,7 +1578,7 @@ function mtRenderAdminDashboard(){
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
           <h2 style="margin:0;">মডেল টেস্ট — শীটসমূহ</h2>
-          <button class="btn small secondary" id="mtChangePinBtn">${ICON_GEAR} এডমিন পিন পরিবর্তন</button>
+          <button class="btn small secondary" id="mtLogoutBtn">${ICON_LOGOUT} লগআউট</button>
         </div>
         <div id="mtSheetList" style="margin-top:14px;">
           ${MT_SHEETS.length===0 ? '<p class="empty">এখনো কোনো শীট তৈরি হয়নি।</p>' : ''}
@@ -1683,7 +1639,11 @@ function mtRenderAdminDashboard(){
     listHost.appendChild(row);
   });
 
-  wrap.querySelector('#mtChangePinBtn').addEventListener('click', async ()=>{ await mtChangeAdminPin(); });
+  wrap.querySelector('#mtLogoutBtn').addEventListener('click', ()=>{
+    TEACHER_UNLOCKED = false; // shared with the main site — logging out here logs out everywhere
+    showToast('লগআউট হয়েছে');
+    mtGo('landing');
+  });
   const newBtn = wrap.querySelector('#mtNewSheetBtn');
   const form = wrap.querySelector('#mtNewSheetForm');
   newBtn.addEventListener('click', ()=>{ form.style.display = 'block'; newBtn.style.display='none'; });
@@ -1700,7 +1660,7 @@ function mtRenderAdminDashboard(){
     let subjects = [];
     if(copyFromId){
       const srcSubjects = await mtLoadSubjects(copyFromId);
-      subjects = srcSubjects.map(s => ({ id: mtNewSubjectId(), name: s.name, fullMarks: s.fullMarks, pin: '' }));
+      subjects = srcSubjects.map(s => ({ id: mtNewSubjectId(), name: s.name, fullMarks: s.fullMarks }));
     }
     await mtSaveSubjects(id, subjects);
     await mtSaveStudents(id, []);
@@ -1721,7 +1681,6 @@ function mtRenderAdminSheet(){
       <td>${i+1}</td>
       <td><input type="text" class="mts-name" value="${s.name}"/></td>
       <td><input type="number" class="mts-full" value="${s.fullMarks}" style="width:80px;"/></td>
-      <td><input type="text" class="mts-pin" value="${s.pin||''}" placeholder="ঐচ্ছিক" style="width:100px;"/></td>
       <td><button class="btn small secondary" data-enter-subject="${s.id}">নম্বর দিন</button></td>
       <td><button class="btn small danger" data-remove-subject="${i}">✕</button></td>
     </tr>
@@ -1734,7 +1693,7 @@ function mtRenderAdminSheet(){
 
         <h3 style="margin:18px 0 8px;font-size:15px;color:var(--accent-dark);">সাবজেক্টসমূহ</h3>
         <table>
-          <thead><tr><th>#</th><th>নাম</th><th>পূর্ণমান</th><th>পিন</th><th></th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>নাম</th><th>পূর্ণমান</th><th></th><th></th></tr></thead>
           <tbody id="mtSubjectRows">${subjectRows}</tbody>
         </table>
         <div class="row-actions">
@@ -1755,18 +1714,35 @@ function mtRenderAdminSheet(){
   wrap.querySelector('#mtBackToDash').addEventListener('click', ()=> mtGo('admin'));
   wrap.querySelector('#mtViewResultBtn').addEventListener('click', ()=> mtGo('result'));
 
+  // Reads whatever is currently typed into the subject rows back into MT_SUBJECTS. This MUST run
+  // before add/remove triggers a re-render — otherwise any not-yet-saved edits in the other rows
+  // get thrown away and overwritten by the stale array, which is exactly the "subjects disappear"
+  // bug: adding or removing a row used to rebuild the table straight from MT_SUBJECTS without ever
+  // capturing what was currently on screen first.
+  function mtSyncSubjectRowsFromDom(){
+    wrap.querySelectorAll('#mtSubjectRows tr').forEach(tr=>{
+      const idx = Number(tr.dataset.idx);
+      if(!MT_SUBJECTS[idx]) return;
+      MT_SUBJECTS[idx].name = tr.querySelector('.mts-name').value;
+      MT_SUBJECTS[idx].fullMarks = Number(tr.querySelector('.mts-full').value) || 100;
+    });
+  }
+
   wrap.querySelector('#mtAddSubjectBtn').addEventListener('click', ()=>{
-    MT_SUBJECTS.push({ id: mtNewSubjectId(), name:'', fullMarks:100, pin:'' });
+    mtSyncSubjectRowsFromDom();
+    MT_SUBJECTS.push({ id: mtNewSubjectId(), name:'', fullMarks:100 });
     render();
   });
   wrap.querySelectorAll('[data-remove-subject]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      mtSyncSubjectRowsFromDom();
       MT_SUBJECTS.splice(Number(btn.dataset.removeSubject), 1);
       render();
     });
   });
   wrap.querySelectorAll('[data-enter-subject]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      mtSyncSubjectRowsFromDom();
       const subj = MT_SUBJECTS.find(s=>s.id===btn.dataset.enterSubject);
       if(!subj) return;
       MT_SUBJECT = subj;
@@ -1776,13 +1752,8 @@ function mtRenderAdminSheet(){
     });
   });
   wrap.querySelector('#mtSaveSubjectsBtn').addEventListener('click', async ()=>{
-    wrap.querySelectorAll('#mtSubjectRows tr').forEach(tr=>{
-      const idx = Number(tr.dataset.idx);
-      MT_SUBJECTS[idx].name = tr.querySelector('.mts-name').value.trim();
-      MT_SUBJECTS[idx].fullMarks = Number(tr.querySelector('.mts-full').value) || 100;
-      MT_SUBJECTS[idx].pin = tr.querySelector('.mts-pin').value.trim();
-    });
-    MT_SUBJECTS = MT_SUBJECTS.filter(s=>s.name);
+    mtSyncSubjectRowsFromDom();
+    MT_SUBJECTS = MT_SUBJECTS.map(s=>({ ...s, name: s.name.trim() })).filter(s=>s.name);
     await mtSaveSubjects(sheet.id, MT_SUBJECTS);
     showToast('সাবজেক্ট তালিকা সংরক্ষিত হয়েছে');
     render();
@@ -1823,67 +1794,6 @@ function mtRenderPublicSelect(){
 }
 
 
-function mtRenderTeacherSelect(){
-  const wrap = el(`
-    <div class="card">
-      <button class="btn small secondary" id="mtBackToLanding">← পেছনে যান</button>
-      <h2 style="margin-top:14px;">শীট ও সাবজেক্ট বেছে নিন</h2>
-      <div class="field">
-        <label>শীট (পরীক্ষা — শ্রেণি) *</label>
-        <select id="mtPickSheet">
-          <option value="">— বেছে নিন —</option>
-          ${MT_SHEETS.map(s=>`<option value="${s.id}">${s.examName} — ${s.className}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field" id="mtSubjectPickWrap" style="display:none;">
-        <label>সাবজেক্ট *</label>
-        <select id="mtPickSubject"></select>
-      </div>
-      <div class="row-actions">
-        <button class="btn" id="mtEnterSubjectBtn" disabled>নম্বর এন্ট্রিতে যান →</button>
-        <button class="btn secondary" id="mtTeacherViewResultBtn" disabled>শুধু ফলাফল দেখুন</button>
-      </div>
-    </div>
-  `);
-  const sheetSel = wrap.querySelector('#mtPickSheet');
-  const subjWrap = wrap.querySelector('#mtSubjectPickWrap');
-  const subjSel = wrap.querySelector('#mtPickSubject');
-  const enterBtn = wrap.querySelector('#mtEnterSubjectBtn');
-  const viewResultBtn = wrap.querySelector('#mtTeacherViewResultBtn');
-
-  wrap.querySelector('#mtBackToLanding').addEventListener('click', ()=> mtGo('landing'));
-
-  sheetSel.addEventListener('change', async ()=>{
-    const id = sheetSel.value;
-    if(!id){ subjWrap.style.display='none'; enterBtn.disabled=true; viewResultBtn.disabled=true; return; }
-    MT_SHEET = MT_SHEETS.find(s=>s.id===id);
-    MT_SUBJECTS = await mtLoadSubjects(id);
-    subjSel.innerHTML = '<option value="">— বেছে নিন —</option>' + MT_SUBJECTS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-    subjWrap.style.display = 'block';
-    viewResultBtn.disabled = false;
-    enterBtn.disabled = true;
-  });
-  subjSel.addEventListener('change', ()=>{ enterBtn.disabled = !subjSel.value; });
-
-  enterBtn.addEventListener('click', async ()=>{
-    const subj = MT_SUBJECTS.find(s=>s.id===subjSel.value);
-    if(!subj) return;
-    if(subj.pin && !MT_UNLOCKED_SUBJECTS.has(subj.id)){
-      const entered = prompt(`"${subj.name}" সাবজেক্টের পিন দিন:`);
-      if(entered === null) return;
-      if(entered.trim() !== subj.pin){ showToast('পিন মিলছে না'); return; }
-      MT_UNLOCKED_SUBJECTS.add(subj.id);
-    }
-    MT_SUBJECT = subj;
-    MT_STUDENTS = await mtLoadStudents(MT_SHEET.id);
-    const marks = await mtLoadMarks(MT_SHEET.id, subj.id);
-    MT_ENTRIES = MT_STUDENTS.map(n=>({ name:n, mark: (marks[n]!==undefined ? marks[n] : null) }));
-    mtGo('entry');
-  });
-  viewResultBtn.addEventListener('click', ()=> mtGo('result'));
-  return wrap;
-}
-
 // ---------- Single-subject marks entry grid (shared: teacher and admin use this) ----------
 function mtRenderEntry(){
   const rows = MT_ENTRIES.map((e,i)=>`
@@ -1914,7 +1824,7 @@ function mtRenderEntry(){
   `);
 
   wrap.querySelector('#mtBackFromEntry').addEventListener('click', ()=>{
-    mtGo(MT_ADMIN_UNLOCKED ? 'admin-sheet' : 'teacher-select');
+    mtGo('admin-sheet');
   });
   wrap.querySelector('#mtAddStudentBtn').addEventListener('click', ()=>{
     MT_ENTRIES.push({ name:'', mark:null });
@@ -1998,13 +1908,14 @@ function mtRenderResultView(){
         <div id="mtResultHost"><p class="muted">লোড হচ্ছে...</p></div>
         <div class="row-actions" id="mtResultActions" style="display:none;">
           <button class="btn" id="mtDownloadResultPdf">PDF ডাউনলোড করুন</button>
+          <button class="btn secondary" id="mtShareBtn">${ICON_SHARE} শেয়ার করুন (WhatsApp)</button>
         </div>
       </div>
       <div class="print-sheet" id="mtPdfSheet"></div>
     </div>
   `);
   wrap.querySelector('#mtBackFromResult').addEventListener('click', ()=>{
-    mtGo(MT_ADMIN_UNLOCKED ? 'admin' : 'teacher-select');
+    mtGo(TEACHER_UNLOCKED ? 'admin' : 'landing');
   });
   (async ()=>{
     const data = await mtComputeResult(MT_SHEET);
@@ -2023,6 +1934,15 @@ function mtRenderResultView(){
       await mtDownloadResultPdf(MT_SHEET, data);
       btn.disabled = false;
       btn.textContent = orig;
+    });
+    wrap.querySelector('#mtShareBtn').addEventListener('click', async (evt)=>{
+      const btn = evt.currentTarget;
+      btn.disabled = true;
+      const orig = btn.innerHTML;
+      btn.textContent = 'তৈরি হচ্ছে...';
+      await mtShareResultPdf(MT_SHEET, data);
+      btn.disabled = false;
+      btn.innerHTML = orig;
     });
   })();
   return wrap;
@@ -2072,51 +1992,70 @@ function mtResultTableHtml(sheet, data, forPrint){
       <tbody>${bodyRows}</tbody>
     </table>
     </div>
-    ${forPrint ? `<p style="margin-top:14px;font-size:12px;text-align:center;">মার্কের ভিত্তিতে মেধাস্থান নির্ধারণ করা হয়েছে।</p>` : ''}
+    ${forPrint ? `<p style="margin-top:16px;font-size:18px;font-weight:700;text-align:center;">মার্কের ভিত্তিতে মেধাস্থান নির্ধারণ করা হয়েছে।</p>` : ''}
   `;
 }
 
 // Multi-page PDF: chunks students into pages of 32 rows, repeating the full header+column
 // titles on every page (per the spec — mobile browsers don't repeat table headers on their own).
+// Picks a canvas width that roughly matches how wide the table actually is (based on how many
+// subjects it has) instead of always using a fixed wide canvas — with few subjects, a fixed-wide
+// canvas left a lot of empty space next to the table, which made the header's logo look like it
+// had drifted off to one side relative to the (much narrower) table below it.
+function mtComputeContainerWidth(subjectCount){
+  return Math.min(1400, Math.max(750, 550 + subjectCount*140));
+}
+
+// Renders one chunk (page) of the merit list to an off-screen canvas. Shared by both the PDF
+// download and the WhatsApp/share function so they always produce identical-looking pages.
+async function mtRenderChunkToCanvas(sheet, subjects, chunkRows){
+  const sheetEl = document.getElementById('mtPdfSheet');
+  const chunkData = { subjects, rows: chunkRows };
+  sheetEl.innerHTML = mtResultTableHtml(sheet, chunkData, true);
+  const prevStyle = sheetEl.getAttribute('style') || '';
+  sheetEl.style.display = 'block';
+  sheetEl.style.position = 'fixed';
+  sheetEl.style.top = '0';
+  sheetEl.style.left = '-10000px';
+  sheetEl.style.width = mtComputeContainerWidth(subjects.length) + 'px';
+  sheetEl.style.background = '#ffffff';
+  sheetEl.style.padding = '24px';
+  sheetEl.style.zIndex = '-1';
+  await new Promise(r=>setTimeout(r,60));
+  const canvas = await html2canvas(sheetEl, { scale:2, backgroundColor:'#ffffff', useCORS:true });
+  sheetEl.setAttribute('style', prevStyle);
+  sheetEl.innerHTML = '';
+  return canvas;
+}
+
+async function mtBuildResultPdf(sheet, data){
+  const ROWS_PER_PAGE = 32;
+  const { subjects, rows } = data;
+  const chunks = [];
+  for(let i=0;i<rows.length;i+=ROWS_PER_PAGE){ chunks.push(rows.slice(i, i+ROWS_PER_PAGE)); }
+  if(!chunks.length) chunks.push([]);
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('l','pt','a4'); // landscape — many subject columns need the width
+  let first = true;
+
+  for(let c=0;c<chunks.length;c++){
+    const canvas = await mtRenderChunkToCanvas(sheet, subjects, chunks[c]);
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const ratio = Math.min((pageWidth-40)/canvas.width, (pageHeight-40)/canvas.height);
+    const imgW = canvas.width*ratio, imgH = canvas.height*ratio;
+    if(!first) pdf.addPage();
+    first = false;
+    pdf.addImage(imgData, 'JPEG', (pageWidth-imgW)/2, 20, imgW, imgH);
+  }
+  return pdf;
+}
+
 async function mtDownloadResultPdf(sheet, data){
   try{
-    const ROWS_PER_PAGE = 32;
-    const { subjects, rows } = data;
-    const chunks = [];
-    for(let i=0;i<rows.length;i+=ROWS_PER_PAGE){ chunks.push(rows.slice(i, i+ROWS_PER_PAGE)); }
-    if(!chunks.length) chunks.push([]);
-
-    const sheetEl = document.getElementById('mtPdfSheet');
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('l','pt','a4'); // landscape — many subject columns need the width
-    let first = true;
-
-    for(let c=0;c<chunks.length;c++){
-      const chunkData = { subjects, rows: chunks[c] };
-      sheetEl.innerHTML = mtResultTableHtml(sheet, chunkData, true);
-      const prevStyle = sheetEl.getAttribute('style') || '';
-      sheetEl.style.display = 'block';
-      sheetEl.style.position = 'fixed';
-      sheetEl.style.top = '0';
-      sheetEl.style.left = '-10000px';
-      sheetEl.style.width = '1400px';
-      sheetEl.style.background = '#ffffff';
-      sheetEl.style.padding = '24px';
-      sheetEl.style.zIndex = '-1';
-      await new Promise(r=>setTimeout(r,60));
-      const canvas = await html2canvas(sheetEl, { scale:2, backgroundColor:'#ffffff', useCORS:true });
-      sheetEl.setAttribute('style', prevStyle);
-      sheetEl.innerHTML = '';
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min((pageWidth-40)/canvas.width, (pageHeight-40)/canvas.height);
-      const imgW = canvas.width*ratio, imgH = canvas.height*ratio;
-      if(!first) pdf.addPage();
-      first = false;
-      pdf.addImage(imgData, 'JPEG', (pageWidth-imgW)/2, 20, imgW, imgH);
-    }
+    const pdf = await mtBuildResultPdf(sheet, data);
     const fname = `${filenameSafe(sheet.examName)}_${filenameSafe(sheet.className)}_merit-list.pdf`.replace(/_+/g,'_');
     pdf.save(fname);
     showToast('PDF ডাউনলোড সম্পন্ন হয়েছে');
@@ -2126,11 +2065,39 @@ async function mtDownloadResultPdf(sheet, data){
   }
 }
 
+// Shares the merit-list result as a PDF (not JPG, since it can be multiple pages — unlike the
+// weekly single-page result, which shares as a single JPG image instead).
+async function mtShareResultPdf(sheet, data){
+  try{
+    const pdf = await mtBuildResultPdf(sheet, data);
+    const blob = pdf.output('blob');
+    const fname = `${filenameSafe(sheet.examName)}_${filenameSafe(sheet.className)}_merit-list.pdf`.replace(/_+/g,'_');
+    const file = new File([blob], fname, { type: 'application/pdf' });
+    const shareText = `${sheet.examName} — ${sheet.className} এর ফলাফল`;
+
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], title: 'মডেল টেস্ট ফলাফল', text: shareText });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      showToast('এই ব্রাউজারে সরাসরি শেয়ার সমর্থিত নয় — PDF ডাউনলোড হয়েছে, WhatsApp-এ গিয়ে সংযুক্ত করে দিন');
+    }
+  }catch(err){
+    if(err.name === 'AbortError') return;
+    console.error(err);
+    showToast('শেয়ার করতে সমস্যা হয়েছে, আবার চেষ্টা করুন');
+
+  }
+}
+
 
 async function init(){
   const app = document.getElementById('app');
   app.innerHTML = `<div style="text-align:center;padding:60px 10px;color:var(--muted);">লোড হচ্ছে...</div>`;
-  await Promise.all([loadSettings(), loadFormMeta(), mtLoadSettings()]);
+  await Promise.all([loadSettings(), loadFormMeta()]);
   history.replaceState({ view: 'home' }, '', '#home'); // establish the starting point for back/forward
   render();
 }
