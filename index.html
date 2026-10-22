@@ -174,6 +174,43 @@
   .print-sheet, .print-sheet *{color:#000 !important;}
   .ps-table td, .ps-table th{font-weight:600;}
   .sig-line{border-top:1px solid #333;padding-top:6px;}
+
+  /* ---- login / password / certificate-scope dialogs ---- */
+  input[type=password]{
+    width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:8px;
+    font-size:15px;background:#fff;color:var(--ink);font-family:inherit;
+  }
+  input[type=password]:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .modal-back{
+    position:fixed;inset:0;background:rgba(20,26,22,.55);z-index:90;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .modal{
+    background:#fff;border-radius:14px;padding:22px;width:100%;max-width:420px;
+    max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);
+  }
+  .modal h3{margin:0 0 6px;font-size:18px;color:var(--accent-dark);}
+  .modal p.muted{margin:0 0 14px;line-height:1.6;}
+  .modal-msg{min-height:20px;color:var(--danger);font-size:13.5px;margin:-4px 0 8px;font-weight:600;}
+  .role-pick{display:flex;gap:8px;margin:12px 0 16px;}
+  .role-pick button{
+    flex:1;padding:10px 8px;border:1.5px solid var(--line);background:#fff;border-radius:10px;
+    font-size:15px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit;
+  }
+  .role-pick button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .role-pick button[data-role=admin].on{background:var(--maroon);border-color:var(--maroon);}
+  .role-badge{
+    display:inline-flex;align-items:center;padding:6px 12px;border-radius:20px;
+    font-size:13px;font-weight:700;color:#fff;background:var(--accent);
+  }
+  .role-badge.admin{background:var(--maroon);}
+  .cert-overlay{position:fixed;inset:0;z-index:100;background:#fff;display:flex;flex-direction:column;}
+  .cert-bar{
+    display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:3px solid var(--gold);
+    background:var(--paper);flex-shrink:0;
+  }
+  .cert-bar b{color:var(--accent-dark);font-size:16px;}
+  .cert-overlay iframe{flex:1;width:100%;border:0;background:#fff;}
 </style>
 </head>
 <body>
@@ -241,6 +278,8 @@ function navigateTo(view, opts){
 }
 
 window.addEventListener('popstate', async (e)=>{
+  // phone/browser back button while the certificate generator is open → just close it
+  if(document.getElementById('certOverlay')){ closeCertificateOverlay(); return; }
   const state = e.state || { view: 'home' };
   VIEW = state.view;
   if(VIEW === 'result' && state.examId && (!currentExam || currentExam.id !== state.examId)){
@@ -264,6 +303,7 @@ const ICON_PLUS = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" s
 const ICON_GEAR = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 const ICON_SHARE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>`;
 const ICON_MT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M9 13.5 7 22l5-3 5 3-2-8.5"/></svg>`;
+const ICON_CERT = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M7 9h10M7 12.5h6"/><path d="M15 17l1.5 4 1.5-1.2 1.5 1.2L21 17"/></svg>`;
 function sanitizeKey(s){ return (s||"").trim().replace(/[\s\/\\'"]+/g,'-'); }
 
 // ---- Filename transliteration (Bengali → English), used ONLY for downloaded file names ----
@@ -337,80 +377,154 @@ async function saveSettings(){
   try{ await STORE.set('settings', JSON.stringify(SETTINGS), true); }catch(e){ console.error(e); }
 }
 
-// Session-only unlock flags — reset on page reload/reopen. Teacher login (create/edit results)
-// and deleting a result use two SEPARATE PINs, so a teacher's login PIN can't itself delete anything.
-let TEACHER_UNLOCKED = false;
-let DELETE_UNLOCKED = false;
+// ============================================================================
+// ROLES — exactly two:
+//   "teacher" → ONE shared password for all teachers: create / edit results, enter Model Test marks
+//   "admin"   → the owner's own password: everything a teacher can do, PLUS deleting results,
+//               the certificate generator, and changing the passwords
+//
+// Storage: SETTINGS.teacherPin = teacher password, SETTINGS.deletePin = admin password.
+// (The field names are kept from the older versions so passwords that are already saved keep working —
+//  the old "delete PIN" simply became the admin password.)
+// Login is session-only: reloading/reopening the page logs out, same as before.
+// ============================================================================
+let ROLE = null; // null | 'teacher' | 'admin'
+function isLoggedIn(){ return ROLE === 'teacher' || ROLE === 'admin'; }
+function isAdmin(){ return ROLE === 'admin'; }
+function setRole(r){
+  ROLE = r;
+  // the certificate page (a separate file) reads this to know whether an admin is logged in
+  try{ if(r) sessionStorage.setItem('rs.role', r); else sessionStorage.removeItem('rs.role'); }catch(e){}
+}
+function logout(){ setRole(null); }
 
-async function verifyTeacherPin(){
-  if(TEACHER_UNLOCKED) return true;
-  if(!SETTINGS.teacherPin){
-    const setPin = prompt('এটাই প্রথমবার — শিক্ষকদের জন্য একটা লগইন পিন সেট করুন (রেজাল্ট তৈরি/এডিট করতে এটা লাগবে, ৪ সংখ্যা বা তার বেশি):');
-    if(!setPin || setPin.trim().length < 4){
-      showToast('পিন সেট করা হয়নি, তাই কাজটি বাতিল হলো');
-      return false;
-    }
-    SETTINGS.teacherPin = setPin.trim();
-    await saveSettings();
-    showToast('শিক্ষক পিন সেট হয়েছে');
-    TEACHER_UNLOCKED = true;
-    return true;
-  }
-  const entered = prompt('শিক্ষক লগইন পিন দিন:');
-  if(entered === null) return false;
-  if(entered.trim() !== SETTINGS.teacherPin){
-    showToast('পিন মিলছে না, কাজটি বাতিল হলো');
-    return false;
-  }
-  TEACHER_UNLOCKED = true;
-  return true;
+// Small reusable dialog. `setup(root, close)` wires the buttons; close(value) resolves the promise.
+function openModal(innerHtml, setup){
+  return new Promise(resolve=>{
+    const back = el(`<div class="modal-back"><div class="modal" role="dialog" aria-modal="true">${innerHtml}</div></div>`);
+    const onKey = (e)=>{ if(e.key === 'Escape') close(null); };
+    const close = (val)=>{ document.removeEventListener('keydown', onKey); back.remove(); resolve(val); };
+    back.addEventListener('mousedown', (e)=>{ if(e.target === back) close(null); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(back);
+    setup(back.querySelector('.modal'), close);
+  });
 }
 
-async function verifyDeletePin(){
-  if(DELETE_UNLOCKED) return true;
-  if(!SETTINGS.deletePin){
-    const setPin = prompt('এটাই প্রথমবার — মুছে ফেলার জন্য একটা আলাদা পিন সেট করুন (এটা শুধু এডমিনের কাছে থাকা উচিত, ৪ সংখ্যা বা তার বেশি):');
-    if(!setPin || setPin.trim().length < 4){
-      showToast('পিন সেট করা হয়নি, তাই মুছে ফেলা বাতিল হলো');
-      return false;
+// Login dialog. need = 'any' (teacher OR admin may log in) | 'admin' (only the admin may).
+// Resolves true on success, null if cancelled. If the chosen role has no password yet (first time),
+// the same dialog asks the person to set one.
+function showLogin(need){
+  const adminOnly = need === 'admin';
+  return openModal(`
+    <h3>${adminOnly ? 'এডমিন লগইন' : 'লগইন'}</h3>
+    <p class="muted" id="lgHint"></p>
+    <div class="role-pick" id="lgRoles" ${adminOnly ? 'style="display:none;"' : ''}>
+      <button type="button" data-role="teacher">শিক্ষক</button>
+      <button type="button" data-role="admin">এডমিন</button>
+    </div>
+    <div class="field"><label id="lgLabel">পাসওয়ার্ড</label><input type="password" id="lgPw" autocomplete="current-password"/></div>
+    <div class="field" id="lgPw2Wrap" style="display:none;"><label>পাসওয়ার্ড আবার লিখুন</label><input type="password" id="lgPw2" autocomplete="new-password"/></div>
+    <div class="modal-msg" id="lgMsg"></div>
+    <div class="row-actions" style="margin-top:0;">
+      <button class="btn" id="lgGo">লগইন</button>
+      <button class="btn secondary" id="lgCancel">বাতিল</button>
+    </div>
+  `, (root, close)=>{
+    let role = adminOnly ? 'admin' : 'teacher';
+    const $ = (sel)=> root.querySelector(sel);
+    const fieldOf = (r)=> r === 'admin' ? 'deletePin' : 'teacherPin';
+    const nameOf = (r)=> r === 'admin' ? 'এডমিন' : 'শিক্ষক';
+    function paint(){
+      root.querySelectorAll('#lgRoles button').forEach(b=> b.classList.toggle('on', b.dataset.role === role));
+      const firstTime = !SETTINGS[fieldOf(role)];
+      $('#lgPw2Wrap').style.display = firstTime ? 'block' : 'none';
+      $('#lgLabel').textContent = firstTime ? `${nameOf(role)} পাসওয়ার্ড সেট করুন (কমপক্ষে ৪ অক্ষর)` : `${nameOf(role)} পাসওয়ার্ড`;
+      $('#lgGo').textContent = firstTime ? 'পাসওয়ার্ড সেট করে লগইন' : 'লগইন';
+      $('#lgHint').textContent = adminOnly
+        ? 'এই কাজটি শুধু এডমিন করতে পারবেন।'
+        : (firstTime ? `এই রোলের জন্য এখনো পাসওয়ার্ড সেট করা হয়নি — প্রথমবার, তাই নতুন একটা পাসওয়ার্ড ঠিক করুন।` : 'আপনার রোল বেছে নিয়ে পাসওয়ার্ড দিন।');
+      $('#lgMsg').textContent = '';
     }
-    SETTINGS.deletePin = setPin.trim();
-    await saveSettings();
-    showToast('ডিলিট পিন সেট হয়েছে');
-    DELETE_UNLOCKED = true;
-    return true;
-  }
-  const entered = prompt('মুছে ফেলার জন্য এডমিন পিন দিন:');
-  if(entered === null) return false;
-  if(entered.trim() !== SETTINGS.deletePin){
-    showToast('পিন মিলছে না, মুছে ফেলা বাতিল হলো');
-    return false;
-  }
-  DELETE_UNLOCKED = true;
-  return true;
+    root.querySelectorAll('#lgRoles button').forEach(b=> b.addEventListener('click', ()=>{ role = b.dataset.role; paint(); $('#lgPw').focus(); }));
+    $('#lgCancel').addEventListener('click', ()=> close(null));
+    async function submit(){
+      const msg = (t)=>{ $('#lgMsg').textContent = t; };
+      const btn = $('#lgGo'); btn.disabled = true;
+      try{
+        // re-read the saved passwords first, so a password changed on another device is respected
+        try{ await loadSettings(); }catch(e){}
+        const field = fieldOf(role);
+        const pw = $('#lgPw').value.trim();
+        if(!SETTINGS[field]){
+          if(pw.length < 4){ msg('পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে'); return; }
+          if(pw !== $('#lgPw2').value.trim()){ msg('দুই ঘরের পাসওয়ার্ড মিলছে না'); return; }
+          const otherPw = role === 'admin' ? SETTINGS.teacherPin : SETTINGS.deletePin;
+          if(otherPw && pw === otherPw){ msg('শিক্ষক ও এডমিনের পাসওয়ার্ড আলাদা হতে হবে'); return; }
+          SETTINGS[field] = pw;
+          await saveSettings();
+          showToast(`${nameOf(role)} পাসওয়ার্ড সেট হয়েছে`);
+        } else if(pw !== SETTINGS[field]){
+          msg('পাসওয়ার্ড মিলছে না');
+          return;
+        }
+        setRole(role);
+        close(true);
+      } finally { btn.disabled = false; }
+    }
+    $('#lgGo').addEventListener('click', submit);
+    root.querySelectorAll('input').forEach(i=> i.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') submit(); }));
+    paint();
+    $('#lgPw').focus();
+  });
 }
 
-// Lets someone who already knows the CURRENT value of a PIN change it to a new one.
-// kind: 'teacher' | 'delete'
-async function changePin(kind){
-  // Changing EITHER pin always requires proving admin identity via the DELETE pin first —
-  // never just the pin-being-changed itself. Otherwise any teacher who knows the shared
-  // teacher PIN could "verify" with that same PIN and change it, locking everyone else out.
-  const adminOk = await verifyDeletePin();
-  if(!adminOk){
-    showToast('পিন পরিবর্তন করতে ডিলিট (এডমিন) পিন প্রয়োজন');
-    return;
-  }
-  const field = kind === 'teacher' ? 'teacherPin' : 'deletePin';
-  const label = kind === 'teacher' ? 'শিক্ষক লগইন' : 'ডিলিট';
-  const fresh = prompt(`নতুন ${label} পিন দিন (৪ সংখ্যা বা তার বেশি):`);
-  if(!fresh || fresh.trim().length < 4){
-    showToast('নতুন পিন সেট করা হয়নি');
-    return;
-  }
-  SETTINGS[field] = fresh.trim();
-  await saveSettings();
-  showToast(`${label} পিন পরিবর্তন হয়েছে`);
+// Gate helpers used everywhere the old PIN prompts were.
+async function requireLogin(){          // teacher OR admin
+  if(isLoggedIn()) return true;
+  return !!(await showLogin('any'));
+}
+async function requireAdmin(){          // admin only (delete, certificates, passwords)
+  if(isAdmin()) return true;
+  return !!(await showLogin('admin'));
+}
+
+// Admin changes the teacher password or the admin password.
+// kind: 'teacher' | 'admin'. Changing the admin password also asks for the current admin password.
+async function changePassword(kind){
+  if(!(await requireAdmin())) return;
+  const forAdmin = kind === 'admin';
+  const label = forAdmin ? 'এডমিন' : 'শিক্ষক';
+  const field = forAdmin ? 'deletePin' : 'teacherPin';
+  const ok = await openModal(`
+    <h3>${label} পাসওয়ার্ড পরিবর্তন</h3>
+    ${forAdmin ? `<div class="field"><label>বর্তমান এডমিন পাসওয়ার্ড</label><input type="password" id="cpOld" autocomplete="current-password"/></div>` : ''}
+    <div class="field"><label>নতুন পাসওয়ার্ড (কমপক্ষে ৪ অক্ষর)</label><input type="password" id="cpNew" autocomplete="new-password"/></div>
+    <div class="field"><label>নতুন পাসওয়ার্ড আবার লিখুন</label><input type="password" id="cpNew2" autocomplete="new-password"/></div>
+    <div class="modal-msg" id="cpMsg"></div>
+    <div class="row-actions" style="margin-top:0;">
+      <button class="btn" id="cpSave">সংরক্ষণ করুন</button>
+      <button class="btn secondary" id="cpCancel">বাতিল</button>
+    </div>
+  `, (root, close)=>{
+    const $ = (sel)=> root.querySelector(sel);
+    $('#cpCancel').addEventListener('click', ()=> close(null));
+    $('#cpSave').addEventListener('click', async ()=>{
+      const msg = (t)=>{ $('#cpMsg').textContent = t; };
+      const fresh = $('#cpNew').value.trim();
+      if(forAdmin && $('#cpOld').value.trim() !== SETTINGS.deletePin){ msg('বর্তমান এডমিন পাসওয়ার্ড মিলছে না'); return; }
+      if(fresh.length < 4){ msg('নতুন পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে'); return; }
+      if(fresh !== $('#cpNew2').value.trim()){ msg('দুই ঘরের নতুন পাসওয়ার্ড মিলছে না'); return; }
+      const otherPw = forAdmin ? SETTINGS.teacherPin : SETTINGS.deletePin;
+      if(otherPw && fresh === otherPw){ msg('শিক্ষক ও এডমিনের পাসওয়ার্ড আলাদা হতে হবে'); return; }
+      SETTINGS[field] = fresh;
+      await saveSettings();
+      close(true);
+    });
+    root.querySelectorAll('input').forEach(i=> i.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') $('#cpSave').click(); }));
+    root.querySelector('input').focus();
+  });
+  if(ok) showToast(`${label} পাসওয়ার্ড পরিবর্তন হয়েছে`);
 }
 
 async function getStudents(classKey){
@@ -533,9 +647,12 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
-const APP_VERSION_DATE = "22-09-2026"; // bump this string every time a new version is shipped
+const APP_VERSION_DATE = "22-10-2026"; // bump this string every time a new version is shipped
 
 function render(){
+  // safety net: a logged-out person (or a teacher) can't land on a screen they aren't allowed to see
+  if(VIEW==='entry' && !isLoggedIn()) VIEW = 'home';
+  if(VIEW==='settings' && !isAdmin()) VIEW = 'home';
   const app = document.getElementById('app');
   app.innerHTML = '';
   app.appendChild(renderHeader());
@@ -549,13 +666,17 @@ function render(){
 }
 
 function renderHeader(){
-  const entryTabHtml = TEACHER_UNLOCKED
+  const loggedIn = isLoggedIn();
+  const entryTabHtml = loggedIn
     ? `<button data-view="entry" class="${VIEW==='entry'?'active':''}">${ICON_PLUS} নতুন রেজাল্ট এন্ট্রি</button>`
-    : `<button id="teacherLoginBtn">${ICON_LOCK} শিক্ষক লগইন</button>`;
-  const settingsHtml = TEACHER_UNLOCKED
-    ? `<button data-view="settings" class="${VIEW==='settings'?'active':''}" title="পিন সেটিংস">${ICON_GEAR}</button>`
+    : `<button id="teacherLoginBtn">${ICON_LOCK} লগইন</button>`;
+  const settingsHtml = isAdmin()
+    ? `<button data-view="settings" class="${VIEW==='settings'?'active':''}" title="পাসওয়ার্ড সেটিংস">${ICON_GEAR}</button>`
     : '';
-  const logoutHtml = TEACHER_UNLOCKED
+  const roleBadgeHtml = loggedIn
+    ? `<span class="role-badge ${isAdmin()?'admin':''}">${isAdmin() ? 'এডমিন' : 'শিক্ষক'}</span>`
+    : '';
+  const logoutHtml = loggedIn
     ? `<button id="teacherLogoutBtn" class="secondary">${ICON_LOGOUT} লগআউট</button>`
     : '';
   const wrap = el(`
@@ -573,27 +694,29 @@ function renderHeader(){
         <button data-view="mt" class="${VIEW==='mt'?'active':''}">${ICON_MT} মডেল টেস্ট রেজাল্ট</button>
         ${entryTabHtml}
         ${settingsHtml}
+        ${roleBadgeHtml}
         ${logoutHtml}
       </nav>
     </header>
   `);
   wrap.querySelectorAll('button[data-view]').forEach(b=>{
     b.addEventListener('click', ()=>{
-      if(b.dataset.view === 'entry' && !TEACHER_UNLOCKED) return; // safety guard, shouldn't normally render
+      if(b.dataset.view === 'entry' && !isLoggedIn()) return; // safety guard, shouldn't normally render
+      if(b.dataset.view === 'settings' && !isAdmin()) return;
       navigateTo(b.dataset.view, { exam: b.dataset.view==='entry' ? blankExam() : undefined });
     });
   });
   const loginBtn = wrap.querySelector('#teacherLoginBtn');
   if(loginBtn){
     loginBtn.addEventListener('click', async ()=>{
-      const ok = await verifyTeacherPin();
-      if(ok){ navigateTo('entry', { exam: blankExam() }); }
+      const ok = await requireLogin();
+      if(ok){ afterLoginNavigate(); }
     });
   }
   const logoutBtn = wrap.querySelector('#teacherLogoutBtn');
   if(logoutBtn){
     logoutBtn.addEventListener('click', ()=>{
-      TEACHER_UNLOCKED = false;
+      logout();
       showToast('লগআউট হয়েছে');
       navigateTo('admin');
     });
@@ -605,6 +728,13 @@ function renderHeader(){
     showToast('সেন্টারের নাম সংরক্ষণ হয়েছে');
   });
   return wrap;
+}
+
+// Where to go right after a successful login from the header / home page:
+// teachers land on the new-result form (as before); the admin lands on the results list.
+function afterLoginNavigate(){
+  if(isAdmin()) navigateTo('admin');
+  else navigateTo('entry', { exam: blankExam() });
 }
 
 function renderHome(){
@@ -620,7 +750,7 @@ function renderHome(){
         </p>
         <div class="row-actions">
           <button class="btn" id="goAdmin">${ICON_EYE} রেজাল্ট দেখুন / প্রিন্ট করুন</button>
-          <button class="btn secondary" id="goTeacherLogin">${ICON_LOCK} শিক্ষক লগইন</button>
+          ${isLoggedIn() ? '' : `<button class="btn secondary" id="goTeacherLogin">${ICON_LOCK} লগইন (শিক্ষক / এডমিন)</button>`}
         </div>
       </div>
     </div>
@@ -629,8 +759,8 @@ function renderHome(){
 function attachHomeEvents(root){
   const e1=root.querySelector('#goTeacherLogin');
   if(e1) e1.addEventListener('click', async ()=>{
-    const ok = await verifyTeacherPin();
-    if(ok){ navigateTo('entry', { exam: blankExam() }); }
+    const ok = await requireLogin();
+    if(ok){ afterLoginNavigate(); }
   });
   const e2=root.querySelector('#goAdmin'); if(e2) e2.addEventListener('click',()=> navigateTo('admin'));
 }
@@ -881,7 +1011,8 @@ function renderResult(){
           <button class="btn" id="printNow">PDF ডাউনলোড করুন</button>
           <button class="btn secondary" id="shareBtn">${ICON_SHARE} শেয়ার করুন (WhatsApp)</button>
           <button class="btn secondary" id="printBrowser">প্রিন্টারে প্রিন্ট করুন</button>
-          ${TEACHER_UNLOCKED ? `<button class="btn secondary" id="newOne">নতুন আরেকটি রেজাল্ট এন্ট্রি</button>` : ''}
+          ${isLoggedIn() ? `<button class="btn secondary" id="newOne">নতুন আরেকটি রেজাল্ট এন্ট্রি</button>` : ''}
+          ${isAdmin() ? `<button class="btn secondary" id="certBtn">${ICON_CERT} সার্টিফিকেট তৈরি করুন</button>` : ''}
           <button class="btn secondary" id="toAdmin">সব রেজাল্ট দেখুন</button>
         </div>
       </div>
@@ -1145,6 +1276,8 @@ function attachResultEvents(root){
   if(newOne) newOne.addEventListener('click', ()=> navigateTo('entry', { exam: blankExam() }));
   const toAdmin = root.querySelector('#toAdmin');
   if(toAdmin) toAdmin.addEventListener('click', ()=> navigateTo('admin'));
+  const certBtn = root.querySelector('#certBtn');
+  if(certBtn) certBtn.addEventListener('click', ()=> startCertificateFromExam(currentExam));
 }
 
 function parseExamKey(key){
@@ -1172,25 +1305,24 @@ function renderSettings(){
   const wrap = el(`
     <div>
       <div class="card">
-        <h2>পিন সেটিংস</h2>
+        <h2>পাসওয়ার্ড সেটিংস</h2>
         <p class="muted" style="font-size:14px;line-height:1.7;margin-bottom:18px;">
-          এখানে দুটো আলাদা পিন আছে — <b>শিক্ষক লগইন পিন</b> (নতুন রেজাল্ট তৈরি/এডিট করতে ব্যবহৃত, সব শিক্ষকের
-          কাছে থাকতে পারে) এবং <b>ডিলিট পিন</b> (শুধু রেজাল্ট স্থায়ীভাবে মুছে ফেলতে ব্যবহৃত, শুধু এডমিন/পরিচালকের
-          কাছে রাখা উচিত)। <b>দুটোর যেকোনোটা পরিবর্তন করতে ডিলিট (এডমিন) পিন দিয়ে যাচাই করতে হবে</b> — শুধু
-          শিক্ষক-পিন জানলেই কেউ পিন বদলাতে পারবে না, শুধু যিনি ডিলিট পিন জানেন তিনিই পারবেন।
+          এই সিস্টেমে মোট <b>২টি রোল</b> আছে, দুটোর পাসওয়ার্ড আলাদা:<br>
+          • <b>শিক্ষক</b> — সব শিক্ষকের জন্য একটাই পাসওয়ার্ড। শিক্ষকরা নতুন রেজাল্ট তৈরি/এডিট এবং মডেল টেস্টের নম্বর তুলতে পারবেন।<br>
+          • <b>এডমিন</b> — শুধু আপনার জন্য। শিক্ষকরা যা পারেন তার সবকিছু, সাথে রেজাল্ট মুছে ফেলা, <b>সার্টিফিকেট জেনারেটর</b> এবং এই পাসওয়ার্ড সেটিংস শুধু এডমিন ব্যবহার করতে পারবেন।
         </p>
         <div class="row-actions">
-          <button class="btn secondary" id="changeTeacherPinBtn">শিক্ষক লগইন পিন পরিবর্তন করুন</button>
-          <button class="btn secondary" id="changeDeletePinBtn">ডিলিট পিন পরিবর্তন করুন</button>
+          <button class="btn secondary" id="changeTeacherPwBtn">শিক্ষক পাসওয়ার্ড পরিবর্তন করুন</button>
+          <button class="btn secondary" id="changeAdminPwBtn">এডমিন পাসওয়ার্ড পরিবর্তন করুন</button>
         </div>
       </div>
     </div>
   `);
-  wrap.querySelector('#changeTeacherPinBtn').addEventListener('click', async ()=>{
-    await changePin('teacher');
+  wrap.querySelector('#changeTeacherPwBtn').addEventListener('click', async ()=>{
+    await changePassword('teacher');
   });
-  wrap.querySelector('#changeDeletePinBtn').addEventListener('click', async ()=>{
-    await changePin('delete');
+  wrap.querySelector('#changeAdminPwBtn').addEventListener('click', async ()=>{
+    await changePassword('admin');
   });
   return wrap;
 }
@@ -1332,9 +1464,10 @@ function renderAdminList(host, searchTerm){
     `);
     const body = folder.querySelector('.folder-body');
     itemsForGroup.forEach(p=>{
-      const actionButtons = TEACHER_UNLOCKED
+      // edit: teacher or admin. delete: admin only (teachers never see the delete button).
+      const actionButtons = isLoggedIn()
         ? `<button class="btn small secondary" data-edit-key="${p.key}" title="এডিট করুন">✎ এডিট</button>
-           <button class="btn small danger" data-del-key="${p.key}" title="মুছে ফেলুন">✕ মুছুন</button>`
+           ${isAdmin() ? `<button class="btn small danger" data-del-key="${p.key}" title="মুছে ফেলুন">✕ মুছুন</button>` : ''}`
         : '';
       const dateTag = GROUP_MODE === 'examtype' ? `<span class="tag">${formatBnDate(p.date)}</span>` : '';
       const item = el(`
@@ -1362,7 +1495,7 @@ function renderAdminList(host, searchTerm){
       if(editBtn){
         editBtn.addEventListener('click', async (evt)=>{
           evt.stopPropagation();
-          const ok = await verifyTeacherPin();
+          const ok = await requireLogin();
           if(!ok) return;
           const id = p.key.replace(/^exam:/,'');
           const data = await getExam(id);
@@ -1376,7 +1509,7 @@ function renderAdminList(host, searchTerm){
       if(delBtn){
         delBtn.addEventListener('click', async (evt)=>{
           evt.stopPropagation();
-          const ok = await verifyDeletePin();
+          const ok = await requireAdmin();
           if(!ok) return;
           const sure = confirm(`নিশ্চিত? এই রেজাল্টটি (${p.classKey.replace(/-/g,' ')} — ${p.subject} — ${p.date}) স্থায়ীভাবে মুছে যাবে।`);
           if(!sure) return;
@@ -1429,10 +1562,9 @@ let MT_STUDENTS = [];    // student names of MT_SHEET
 let MT_SUBJECT = null;   // the single subject currently being entered
 let MT_ENTRIES = [];     // [{name, mark}] for the current single-subject entry grid
 
-// Model Test management (creating sheets, subjects, entering/editing marks) is gated behind the
-// SAME shared "শিক্ষক লগইন" pin as the rest of the site (verifyTeacherPin/TEACHER_UNLOCKED) —
-// one password for all staff, exactly like the weekly result system. There is no separate MT
-// admin pin or per-subject pin anymore: only public result-viewing is open without any login.
+// Model Test management (creating sheets, subjects, entering/editing marks) needs a login —
+// teacher OR admin (requireLogin/isLoggedIn), same as the rest of the site. Only public
+// result-viewing is open without any login. The certificate button on the result sheet is admin-only.
 
 async function mtLoadSheetsIndex(){
   try{
@@ -1550,7 +1682,7 @@ function mtRenderLanding(){
       <p>একাধিক সাবজেক্টের নম্বর নিয়ে মেধাক্রম (merit list) তৈরির জন্য — শিক্ষকরা একসাথে নিজের নিজের সাবজেক্টের নম্বর তুলবেন, একই শেয়ার্ড শীটে।</p>
       <div class="row-actions">
         <button class="btn" id="mtGoPublic">${ICON_EYE} ফলাফল দেখুন / প্রিন্ট করুন</button>
-        <button class="btn secondary" id="mtGoTeacher">${ICON_LOCK} শিক্ষক লগইন</button>
+        <button class="btn secondary" id="mtGoTeacher">${ICON_LOCK} লগইন (শিক্ষক / এডমিন)</button>
       </div>
     </div>
   `);
@@ -1564,7 +1696,7 @@ function mtAttachLandingEvents(root){
   });
   const t = root.querySelector('#mtGoTeacher');
   if(t) t.addEventListener('click', async ()=>{
-    const ok = await verifyTeacherPin(); // same shared pin as the rest of the site
+    const ok = await requireLogin(); // same login (teacher or admin) as the rest of the site
     if(!ok) return;
     await mtLoadSheetsIndex();
     mtGo('admin');
@@ -1640,7 +1772,7 @@ function mtRenderAdminDashboard(){
   });
 
   wrap.querySelector('#mtLogoutBtn').addEventListener('click', ()=>{
-    TEACHER_UNLOCKED = false; // shared with the main site — logging out here logs out everywhere
+    logout(); // shared with the main site — logging out here logs out everywhere
     showToast('লগআউট হয়েছে');
     mtGo('landing');
   });
@@ -1909,13 +2041,14 @@ function mtRenderResultView(){
         <div class="row-actions" id="mtResultActions" style="display:none;">
           <button class="btn" id="mtDownloadResultPdf">PDF ডাউনলোড করুন</button>
           <button class="btn secondary" id="mtShareBtn">${ICON_SHARE} শেয়ার করুন (WhatsApp)</button>
+          ${isAdmin() ? `<button class="btn secondary" id="mtCertBtn">${ICON_CERT} সার্টিফিকেট তৈরি করুন</button>` : ''}
         </div>
       </div>
       <div class="print-sheet" id="mtPdfSheet"></div>
     </div>
   `);
   wrap.querySelector('#mtBackFromResult').addEventListener('click', ()=>{
-    mtGo(TEACHER_UNLOCKED ? 'admin' : 'landing');
+    mtGo(isLoggedIn() ? 'admin' : 'landing');
   });
   (async ()=>{
     const data = await mtComputeResult(MT_SHEET);
@@ -1944,6 +2077,8 @@ function mtRenderResultView(){
       btn.disabled = false;
       btn.innerHTML = orig;
     });
+    const mtCertBtn = wrap.querySelector('#mtCertBtn');
+    if(mtCertBtn) mtCertBtn.addEventListener('click', ()=> startCertificateFromMT(MT_SHEET, data));
   })();
   return wrap;
 }
@@ -2094,7 +2229,126 @@ async function mtShareResultPdf(sheet, data){
 }
 
 
+// ============================================================================
+// CERTIFICATE GENERATOR — admin only.
+// It lives in its own file (certificate.html) and opens full-screen on top of the result sheet,
+// already filled with the students of that result. The admin password is checked here (requireAdmin)
+// AND again inside certificate.html, so the page can't be used by teachers or visitors.
+// ============================================================================
+const CERT_PAGE = 'certificate.html';
+
+// Asks "up to which merit position should get a certificate?". Positions (not a head-count) are used so
+// that students who tie on the same position are never split up. Resolves to a number, or null if cancelled.
+function askCertificateScope(items){
+  const maxPos = Math.max(...items.map(i=> Number(i.pos)));
+  const countUpTo = (n)=> items.filter(i=> Number(i.pos) <= n).length;
+  const startN = Math.min(3, maxPos);
+  return openModal(`
+    <h3>সার্টিফিকেট তৈরি</h3>
+    <p class="muted">মেধাস্থান অনুযায়ী কত নম্বর স্থান পর্যন্ত সার্টিফিকেট দেবেন? যেমন ৩ দিলে ১ম, ২য় ও ৩য় — এই তিন স্থানের সবাই আসবেন (একই স্থানে একাধিক জন থাকলে সবাই)।</p>
+    <div class="row-actions" style="margin:0 0 12px;">
+      <button class="btn small secondary" data-n="1">শুধু ১ম</button>
+      <button class="btn small secondary" data-n="3">৩য় পর্যন্ত</button>
+      <button class="btn small secondary" data-n="5">৫ম পর্যন্ত</button>
+      <button class="btn small secondary" data-n="${maxPos}">সবাই</button>
+    </div>
+    <div class="field"><label>কত নম্বর স্থান পর্যন্ত</label><input type="number" id="csN" min="1" max="${maxPos}" value="${startN}"/></div>
+    <p class="muted" id="csCount" style="margin-top:-6px;"></p>
+    <div class="modal-msg" id="csMsg"></div>
+    <div class="row-actions" style="margin-top:0;">
+      <button class="btn" id="csGo">সার্টিফিকেট জেনারেটর খুলুন</button>
+      <button class="btn secondary" id="csCancel">বাতিল</button>
+    </div>
+  `, (root, close)=>{
+    const input = root.querySelector('#csN');
+    const countEl = root.querySelector('#csCount');
+    const paint = ()=>{
+      const n = parseInt(input.value, 10);
+      countEl.textContent = (n >= 1) ? `${toBnDigits(countUpTo(Math.min(n, maxPos)))} জনের সার্টিফিকেট তৈরি হবে` : '';
+    };
+    input.addEventListener('input', paint);
+    root.querySelectorAll('[data-n]').forEach(b=> b.addEventListener('click', ()=>{
+      input.value = Math.min(maxPos, Number(b.dataset.n));
+      paint();
+    }));
+    root.querySelector('#csCancel').addEventListener('click', ()=> close(null));
+    root.querySelector('#csGo').addEventListener('click', ()=>{
+      const n = parseInt(input.value, 10);
+      if(!(n >= 1)){ root.querySelector('#csMsg').textContent = '১ বা তার বেশি একটা সংখ্যা দিন'; return; }
+      close(Math.min(n, maxPos));
+    });
+    input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') root.querySelector('#csGo').click(); });
+    paint();
+  });
+}
+
+// items: [{name, cls, marks, pos, grade}] — only students who actually have a merit position.
+async function startCertificateGenerator(items, eventLabel){
+  if(!(await requireAdmin())) return;
+  if(!items.length){ showToast('সার্টিফিকেট দেওয়ার মতো কোনো শিক্ষার্থী নেই'); return; }
+  const cutoff = await askCertificateScope(items);
+  if(cutoff === null) return;
+  const chosen = items.filter(i=> Number(i.pos) <= cutoff);
+  const payload = {
+    students: chosen.map(i=>({
+      name: i.name,
+      cls: i.cls || '',
+      roll: '',
+      marks: (i.marks === null || i.marks === undefined) ? '' : String(i.marks),
+      pos: String(i.pos),
+      grade: i.grade || ''
+    })),
+    event: eventLabel || '',
+    inst: SETTINGS.centerName
+  };
+  try{ sessionStorage.setItem('rs.certImport', JSON.stringify(payload)); }
+  catch(e){ showToast('এই ব্রাউজারে সার্টিফিকেট জেনারেটর খোলা যাচ্ছে না'); return; }
+  openCertificateOverlay();
+}
+
+// Weekly result → certificates (name, class, marks and merit position come straight from the result sheet)
+function startCertificateFromExam(ex){
+  if(!ex) return;
+  const cls = `${ex.cls || ''}${ex.section ? ' ('+ex.section+')' : ''}`.trim();
+  const items = computeRanking(ex.entries)
+    .filter(r=> r.rank !== null)
+    .map(r=> ({ name: r.name, cls, marks: r.mark, pos: r.rank, grade: '' }));
+  const eventLabel = [ex.examType, ex.subject].filter(Boolean).join(' — ');
+  startCertificateGenerator(items, eventLabel);
+}
+
+// Model Test merit list → certificates (total marks, GPA grade and merit position from the sheet)
+function startCertificateFromMT(sheet, data){
+  if(!sheet || !data) return;
+  const items = data.rows.map(r=> ({ name: r.name, cls: sheet.className, marks: r.total, pos: r.position, grade: r.grading }));
+  startCertificateGenerator(items, sheet.examName);
+}
+
+function openCertificateOverlay(){
+  if(document.getElementById('certOverlay')) return;
+  const ov = el(`
+    <div class="cert-overlay" id="certOverlay">
+      <div class="cert-bar">
+        <button class="btn small secondary" id="certBack">← ফিরে যান</button>
+        <b>সার্টিফিকেট জেনারেটর</b>
+      </div>
+      <iframe src="${CERT_PAGE}" title="সার্টিফিকেট জেনারেটর"></iframe>
+    </div>
+  `);
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+  // one history entry, so the phone/browser back button closes the generator instead of leaving the app
+  history.pushState({ view: VIEW, examId: (VIEW === 'result' && currentExam) ? currentExam.id : null, cert: true }, '', '#certificate');
+  ov.querySelector('#certBack').addEventListener('click', ()=> history.back());
+}
+function closeCertificateOverlay(){
+  const ov = document.getElementById('certOverlay');
+  if(ov) ov.remove();
+  document.body.style.overflow = '';
+}
+
 async function init(){
+  setRole(null); // login is session-only — a reload/reopen always starts logged out
   const app = document.getElementById('app');
   app.innerHTML = `<div style="text-align:center;padding:60px 10px;color:var(--muted);">লোড হচ্ছে...</div>`;
   await Promise.all([loadSettings(), loadFormMeta()]);

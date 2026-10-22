@@ -4,8 +4,8 @@
 // UI itself — though saving/loading results still needs an internet connection, since
 // that part talks to Google Sheets).
 
-const CACHE_NAME = 'result-system-v1';
-const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE_NAME = 'result-system-v2';
+const APP_SHELL = ['./', './index.html', './certificate.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
