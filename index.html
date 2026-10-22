@@ -145,7 +145,7 @@
   .toast{
     position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
     background:var(--accent-dark);color:#fff;padding:11px 20px;border-radius:8px;
-    font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:50;
+    font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.2);z-index:120;
   }
   .print-sheet{display:none;}
 
@@ -647,6 +647,7 @@ function toBnOrdinal(n){
   return toBnDigits(n)+'তম';
 }
 
+const APP_VERSION = "v2.1";            // bump together with CERT_VERSION in certificate.html on every upload
 const APP_VERSION_DATE = "22-10-2026"; // bump this string every time a new version is shipped
 
 function render(){
@@ -662,7 +663,8 @@ function render(){
   if(VIEW==='admin') app.appendChild(renderAdmin());
   if(VIEW==='settings') app.appendChild(renderSettings());
   if(VIEW==='mt') app.appendChild(renderMT());
-  app.appendChild(el(`<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:30px;padding-top:14px;border-top:1px solid var(--line);">Update: ${APP_VERSION_DATE}</div>`));
+  // deployed-version line: only the admin sees it (to check that the latest upload is really live)
+  if(isAdmin()) app.appendChild(el(`<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:30px;padding-top:14px;border-top:1px solid var(--line);">ডিপ্লয় ভার্সন: <b>${APP_VERSION}</b> · আপডেট: ${APP_VERSION_DATE}</div>`));
 }
 
 function renderHeader(){
@@ -2340,6 +2342,13 @@ function openCertificateOverlay(){
   // one history entry, so the phone/browser back button closes the generator instead of leaving the app
   history.pushState({ view: VIEW, examId: (VIEW === 'result' && currentExam) ? currentExam.id : null, cert: true }, '', '#certificate');
   ov.querySelector('#certBack').addEventListener('click', ()=> history.back());
+  // admin-only check: warn if certificate.html on the server is an older/newer upload than index.html
+  ov.querySelector('iframe').addEventListener('load', ()=>{
+    try{
+      const v = ov.querySelector('iframe').contentWindow.__CERT_VERSION;
+      if(v !== APP_VERSION) showToast(`সতর্কতা: certificate.html (${v||'পুরনো'}) আর index.html (${APP_VERSION}) একই ভার্সনের নয় — দুটো ফাইলই আবার আপলোড করুন`);
+    }catch(e){}
+  });
 }
 function closeCertificateOverlay(){
   const ov = document.getElementById('certOverlay');

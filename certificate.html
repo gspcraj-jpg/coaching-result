@@ -15,6 +15,7 @@
 (function(){
   var ok=false; try{ ok = sessionStorage.getItem('rs.role')==='admin'; }catch(e){}
   window.__RS_ADMIN = ok;
+  window.__CERT_VERSION = 'v2.1';
   if(!ok){
     var st=document.createElement('style');
     st.textContent='.app,#toast,#off,#printRoot{display:none!important}';
@@ -145,7 +146,7 @@ textarea.in{min-height:84px;resize:vertical;line-height:1.6}
 .t-royal .c-name{font-size:46px;color:#14206E;margin-top:6px}
 .t-royal .c-sigs{padding-left:126px}
 .t-royal .seal{position:absolute;left:30px;bottom:30px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle at 32% 28%,#F8E39E,#D3A233 58%,#A97A17);border:4px solid #F0D27A;box-shadow:0 5px 12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
-.t-royal .seal .in{width:128px;height:128px;border-radius:50%;border:2px dashed rgba(20,32,110,.55);display:flex;align-items:center;justify-content:center;padding:14px;font-family:'Tiro Bangla','Hind Siliguri','Noto Sans Bengali',serif;font-weight:700;font-size:17px;line-height:1.35;color:#14206E}
+.t-royal .seal .sealin{background:none;min-height:0;width:128px;height:128px;border-radius:50%;border:2px dashed rgba(20,32,110,.55);display:flex;align-items:center;justify-content:center;padding:14px;font-family:'Tiro Bangla','Hind Siliguri','Noto Sans Bengali',serif;font-weight:700;font-size:17px;line-height:1.35;color:#14206E}
 
 /* --- Modern --- */
 .t-modern{color:#12235a}
@@ -466,7 +467,7 @@ function certHTML(st,tpl){
 <rect x="68" y="68" width="658" height="986" fill="#FFFDF5" stroke="#C9A24A" stroke-width="3"/><rect x="80" y="80" width="634" height="962" fill="none" stroke="#C9A24A" stroke-width="1"/></svg>
 <div class="paper"><div class="c-title">${esc(S.title)}</div><div class="orn"><i></i><b></b><i></i></div>
 <div class="logo" style="${L}"></div>${inst}<div class="grow" style="flex:.55"></div><div class="c-intro">${esc(S.intro)}</div>${nm(48)}${meta(f)}${body}<div class="grow"></div>${badge(f,c)}${sigs()}</div>
-<div class="seal"><div class="in">${esc(bn(S.event))}</div></div></div>`;
+<div class="seal"><div class="sealin">${esc(bn(S.event))}</div></div></div>`;
 }
 
 /* ---------- UI: settings ---------- */
